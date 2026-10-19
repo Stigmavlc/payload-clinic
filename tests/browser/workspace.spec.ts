@@ -294,6 +294,36 @@ test("a redacted title survives reload and an unreadable saved copy is preserved
       localStorage.getItem("payload-clinic.incident.v1"),
     ),
   ).toBe("{unreadable");
+  await page
+    .getByRole("button", { name: "Remove saved copy", exact: true })
+    .click();
+  await expect(page.getByText(/Saved copy removed/)).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBeNull();
+  await page.getByLabel("Synthetic examples").selectOption("booking");
+  await expect(
+    page.getByText("Redacted incident saved on this browser.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/saved incident could not be reopened/),
+  ).not.toBeVisible();
+  const replacement = await page.evaluate(() =>
+    localStorage.getItem("payload-clinic.incident.v1"),
+  );
+  expect(replacement).not.toBeNull();
+  expect(replacement).not.toBe("{unreadable");
+  await page
+    .getByRole("button", { name: "Remove saved copy", exact: true })
+    .click();
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBeNull();
+  await expect(page.getByText(/Saved copy removed/)).toBeVisible();
 });
 
 test("blocked storage shows an unavailable warning on first visit", async ({

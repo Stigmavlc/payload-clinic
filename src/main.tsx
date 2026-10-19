@@ -60,6 +60,7 @@ function App() {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [storageNote, setStorageNote] = useState("");
+  const removedView = useRef<Incident | null>(null);
   const [notice, setNotice] = useState("");
   const modalRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -109,6 +110,7 @@ function App() {
       );
       return;
     }
+    if (removedView.current === incident) return;
     try {
       localStorage.setItem(STORAGE, JSON.stringify(incident));
       setStorageNote("Redacted incident saved on this browser.");
@@ -265,6 +267,8 @@ function App() {
               onClick={() => {
                 try {
                   localStorage.removeItem(STORAGE);
+                  removedView.current = incident;
+                  setPreserveSaved(false);
                   setStorageNote(
                     "Saved copy removed. This view remains in memory until another incident is loaded.",
                   );
