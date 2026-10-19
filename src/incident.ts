@@ -144,7 +144,9 @@ export function importIncident(
     if (credentialLike(value)) knownSecrets.add(value);
   };
   const formFields = (value: string): URLSearchParams | null =>
-    /^[^=&\s]+=[^\r\n]*$/.test(value) ? new URLSearchParams(value) : null;
+    /^[^=&\s]+=[^\r\n]*$/.test(value.trim())
+      ? new URLSearchParams(value.trim())
+      : null;
   const collect = (value: unknown, path: string, depth = 0): void => {
     if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
     if (Array.isArray(value))
@@ -336,31 +338,41 @@ export function importIncident(
             .replace(/%20/g, " ");
         const names = new Map<string, string>();
         const used = fieldNames();
-        return value
-          .split("&")
-          .map((part) => {
-            const entry = [...new URLSearchParams(part)][0];
-            if (!entry) return part;
-            const [key, v] = entry;
-            const separator = part.indexOf("=");
-            const rawKey = separator < 0 ? part : part.slice(0, separator);
-            const rawValue = separator < 0 ? "" : part.slice(separator + 1);
-            const safeKey = names.get(key) ?? fieldName(key, path, used);
-            names.set(key, safeKey);
-            let safeValue: string;
-            if (sensitiveField(key) && v !== "") {
-              if (v !== "[removed]")
-                redactions.add(`${path}.${safeKey}: sensitive form field`);
-              safeValue = "[removed]";
-            } else safeValue = scrubText(v, `${path}.${safeKey}`);
-            if (safeKey === key && safeValue === v) return part;
-            return (
-              (safeKey === key ? rawKey : readableEncoding(safeKey)) +
-              "=" +
-              (safeValue === v ? rawValue : readableEncoding(safeValue))
-            );
-          })
-          .join("&");
+        const leading = /^\s*/.exec(value)![0];
+        const trailing = /\s*$/.exec(value)![0];
+        const content = value.slice(
+          leading.length,
+          value.length - trailing.length,
+        );
+        return (
+          leading +
+          content
+            .split("&")
+            .map((part) => {
+              const entry = [...new URLSearchParams(part)][0];
+              if (!entry) return part;
+              const [key, v] = entry;
+              const separator = part.indexOf("=");
+              const rawKey = separator < 0 ? part : part.slice(0, separator);
+              const rawValue = separator < 0 ? "" : part.slice(separator + 1);
+              const safeKey = names.get(key) ?? fieldName(key, path, used);
+              names.set(key, safeKey);
+              let safeValue: string;
+              if (sensitiveField(key) && v !== "") {
+                if (v !== "[removed]")
+                  redactions.add(`${path}.${safeKey}: sensitive form field`);
+                safeValue = "[removed]";
+              } else safeValue = scrubText(v, `${path}.${safeKey}`);
+              if (safeKey === key && safeValue === v) return part;
+              return (
+                (safeKey === key ? rawKey : readableEncoding(safeKey)) +
+                "=" +
+                (safeValue === v ? rawValue : readableEncoding(safeValue))
+              );
+            })
+            .join("&") +
+          trailing
+        );
       }
       return scrubText(value, path);
     }

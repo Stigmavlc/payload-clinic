@@ -560,3 +560,34 @@ it("keeps email-named JSON keys, headers and form fields unchanged across two re
     imported.redactions.every((line) => !line.startsWith("field name:")),
   ).toBe(true);
 });
+
+it.each(["\n", "\r\n", " ", "\t"])(
+  "redacts form bodies with surrounding whitespace %j before persistence",
+  (edge) => {
+    const source = fixture();
+    source.attempts = [
+      {
+        ...source.attempts[1],
+        requestBody:
+          edge + "AccountSid=AC0000&token=synthetic-secret-812&qty=2" + edge,
+        responseBody: edge + "password=synthetic-password-813&ok=1" + edge,
+      },
+    ];
+    const incident = importIncident(JSON.stringify(source));
+    expect(incident.attempts[0].requestBody).toBe(
+      edge + "AccountSid=AC0000&token=[removed]&qty=2" + edge,
+    );
+    expect(incident.attempts[0].responseBody).toBe(
+      edge + "password=[removed]&ok=1" + edge,
+    );
+    expect(incident.redactions).toEqual([
+      "attempt 1.requestBody.token: sensitive form field",
+      "attempt 1.responseBody.password: sensitive form field",
+    ]);
+    const reopened = importIncident(JSON.stringify(incident), {
+      restoreRedactions: true,
+    });
+    expect(reopened).toEqual(incident);
+    expect(report(reopened)).not.toMatch(/synthetic-secret|synthetic-password/);
+  },
+);
