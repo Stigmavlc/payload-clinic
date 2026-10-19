@@ -292,18 +292,16 @@ test("multi-day attempts show dates and readable retry gaps", async ({
     requestBody: "{}",
     responseBody: "",
   };
-  await page
-    .getByLabel("Or paste an incident")
-    .fill(
-      JSON.stringify({
-        title: "Two-day retries",
-        senderTimeoutMs: 1000,
-        attempts: [
-          attempt,
-          { ...attempt, id: "late", receivedAt: "2026-10-18T10:00:01Z" },
-        ],
-      }),
-    );
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Two-day retries",
+      senderTimeoutMs: 1000,
+      attempts: [
+        attempt,
+        { ...attempt, id: "late", receivedAt: "2026-10-18T10:00:01Z" },
+      ],
+    }),
+  );
   await page.getByRole("button", { name: "Validate and import" }).click();
   await expect(page.locator(".timeline")).toContainText(
     "2026-10-17 10:00:00 UTC",
@@ -319,3 +317,45 @@ test("multi-day attempts show dates and readable retry gaps", async ({
     page.getByText("1 day, 1 second", { exact: true }),
   ).toBeVisible();
 });
+
+for (const width of [1440, 390]) {
+  test(`import and log spacing remains readable at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("./");
+    await page
+      .getByRole("button", { name: "Import incident", exact: true })
+      .click();
+    expect(
+      await page
+        .locator(".import-dialog p.muted")
+        .evaluate((e) => parseFloat(getComputedStyle(e).marginBottom)),
+    ).toBeGreaterThan(12);
+    await page.getByLabel("Or paste an incident").fill("{");
+    await page.getByRole("button", { name: "Validate and import" }).click();
+    expect(
+      await page
+        .getByRole("alert")
+        .evaluate((e) => parseFloat(getComputedStyle(e).marginTop)),
+    ).toBeGreaterThan(4);
+    await page.screenshot({
+      path: `test-results/import-${width}.png`,
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByText("Headers and redaction log").click();
+    const heading = page.getByRole("heading", {
+      name: "Selected headers",
+      exact: true,
+    });
+    expect(
+      await heading.evaluate((e) => parseFloat(getComputedStyle(e).marginTop)),
+    ).toBeGreaterThan(12);
+    await heading.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: `test-results/log-${width}.png`,
+      fullPage: true,
+    });
+  });
+}
