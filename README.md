@@ -39,7 +39,7 @@ Redaction is a practical filter, not an anonymisation guarantee. It cannot recog
 
 Only the redacted incident is stored in `localStorage`, under `payload-clinic.incident.v1`. Browser storage is unencrypted and available to other scripts on the same origin. **Remove saved copy** deletes the stored incident; the current view remains in memory until the page closes or a different incident is loaded. Importing or choosing an example saves that new redacted incident again. Clearing site storage also removes the saved copy.
 
-The signature checker is separate. Its raw body, signature header and secret stay in component memory, are never included in storage or exports, and clear when leaving that view or pressing **Clear inputs**. Use its synthetic examples rather than live credentials. A matching signature establishes that the supplied bytes and key match, not that the event was authorised or processed successfully.
+The signature checker is separate. Its raw body, signature header and secret stay in component memory, are never included in storage or exports, and clear when leaving that view or pressing **Clear sensitive inputs**. Use its synthetic examples rather than live credentials. A matching signature establishes that the supplied bytes and key match, not that the event was authorised or processed successfully.
 
 ## Incident format
 
