@@ -387,3 +387,31 @@ it("numbers redaction paths in the same chronological order as the timeline and 
       .redactions,
   ).toEqual(incident.redactions);
 });
+
+it.each([
+  "Body=Hello%20world!&From=%2b447700900123",
+  "error=invalid signature, retry later",
+  "quantity=1&quantity=2&flag&value=a%2fb%20c+more",
+])("preserves unchanged form evidence exactly: %s", (body) => {
+  const data = fixture();
+  data.attempts[0].requestBody = body;
+  const incident = importIncident(JSON.stringify(data));
+  expect(incident.attempts[1].requestBody).toBe(body);
+  expect(
+    importIncident(JSON.stringify(incident), { restoreRedactions: true })
+      .attempts[1].requestBody,
+  ).toBe(body);
+});
+it("patches only removed form values and leaves their replacements readable", () => {
+  const data = fixture();
+  data.attempts[0].requestBody =
+    "Body=Hello%20world!&From=%2b447700900123&token=private-value&note=private-value&flag";
+  const incident = importIncident(JSON.stringify(data));
+  const expected =
+    "Body=Hello%20world!&From=%2b447700900123&token=[removed]&note=[secret removed]&flag";
+  expect(incident.attempts[1].requestBody).toBe(expected);
+  expect(report(incident)).toContain(expected);
+  expect(
+    importIncident(JSON.stringify(incident), { restoreRedactions: true }),
+  ).toEqual(incident);
+});

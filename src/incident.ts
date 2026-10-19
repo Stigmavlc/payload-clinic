@@ -304,16 +304,35 @@ export function importIncident(
     } catch {
       const fields = formFields(value);
       if (fields) {
-        const clean = new URLSearchParams();
-        fields.forEach((v, key) => {
-          const safeKey = scrubText(key, path, false);
-          if (sensitive.test(key)) {
-            if (v !== "[removed]")
-              redactions.add(`${path}.${safeKey}: sensitive form field`);
-            clean.append(safeKey, "[removed]");
-          } else clean.append(safeKey, scrubText(v, `${path}.${safeKey}`));
-        });
-        return clean.toString();
+        const readableEncoding = (text: string) =>
+          encodeURIComponent(text)
+            .replace(/%5B/gi, "[")
+            .replace(/%5D/gi, "]")
+            .replace(/%20/g, " ");
+        return value
+          .split("&")
+          .map((part) => {
+            const entry = [...new URLSearchParams(part)][0];
+            if (!entry) return part;
+            const [key, v] = entry;
+            const separator = part.indexOf("=");
+            const rawKey = separator < 0 ? part : part.slice(0, separator);
+            const rawValue = separator < 0 ? "" : part.slice(separator + 1);
+            const safeKey = scrubText(key, path, false);
+            let safeValue: string;
+            if (sensitive.test(key)) {
+              if (v !== "[removed]")
+                redactions.add(`${path}.${safeKey}: sensitive form field`);
+              safeValue = "[removed]";
+            } else safeValue = scrubText(v, `${path}.${safeKey}`);
+            if (safeKey === key && safeValue === v) return part;
+            return (
+              (safeKey === key ? rawKey : readableEncoding(safeKey)) +
+              "=" +
+              (safeValue === v ? rawValue : readableEncoding(safeValue))
+            );
+          })
+          .join("&");
       }
       return scrubText(value, path);
     }
