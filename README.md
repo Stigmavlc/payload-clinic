@@ -1,6 +1,6 @@
 # Payload Clinic
 
-A local workspace for investigating webhook delivery records. Put a slow response next to a retry, compare what the receiver recorded, and keep observations separate from possible explanations.
+Payload Clinic helps small software support teams explain failed webhook deliveries. Bring synthetic or redacted receiving-side records into one local workspace, compare attempts and prepare an incident report without copying production secrets into an online service.
 
 [Open the demo](https://stigmavlc.github.io/payload-clinic/) · [Run locally](#run-locally) · [Incident format](#incident-format)
 
