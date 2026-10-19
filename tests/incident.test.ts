@@ -92,6 +92,16 @@ it("retains repeated JSON names and their exact redaction log across two reopens
   expect(first).toEqual(incident);
   expect(second).toEqual(incident);
 });
+it("exports kept and removed headers and labels an absent response body", () => {
+  const source = fixture();
+  source.attempts[0].responseBody = "";
+  const output = report(importIncident(JSON.stringify(source)));
+  expect(output).toContain('"content-type": "application/json"');
+  expect(output).toContain('"Authorization": "[removed]"');
+  expect(output).toContain("No headers recorded");
+  expect(output).toContain("Response:\nNo response body recorded");
+  expect(output).not.toContain("private-value");
+});
 it("uses the same missing response label in comparisons and reports", () => {
   const incident = importIncident(JSON.stringify(fixture()));
   incident.attempts[1].status = null;

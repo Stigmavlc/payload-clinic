@@ -642,11 +642,18 @@ export function report(incident: Incident): string {
           `${f.kind === "observed" ? "Observed" : "Check"}: ${f.title}. ${f.detail}`,
       ),
       "",
+      "Headers:",
+      Object.keys(a.headers).length
+        ? fenced(JSON.stringify(a.headers, null, 2))
+        : "No headers recorded",
+      "",
       "Request:",
       fenced(a.requestBody),
       "",
       "Response:",
-      fenced(a.responseBody),
+      a.responseBody === ""
+        ? "No response body recorded"
+        : fenced(a.responseBody),
       "",
     ]),
     "## Redactions",
