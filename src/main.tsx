@@ -393,7 +393,13 @@ function App() {
                   <section>
                     <div className="section-title">
                       <h3>Request body</h3>
-                      <span className="eyebrow">Redacted</span>
+                      <span className="eyebrow">
+                        {["text", "unknown"].includes(
+                          current.requestChecks ?? "unknown",
+                        )
+                          ? "Review content"
+                          : "Redacted"}
+                      </span>
                     </div>
                     <p className="help mb-2">
                       {bodyChecks(current.requestBody, current.requestChecks)}
@@ -405,7 +411,13 @@ function App() {
                   <section>
                     <div className="section-title">
                       <h3>Response body</h3>
-                      <span className="eyebrow">Redacted</span>
+                      <span className="eyebrow">
+                        {["text", "unknown"].includes(
+                          current.responseChecks ?? "unknown",
+                        )
+                          ? "Review content"
+                          : "Redacted"}
+                      </span>
                     </div>
                     <p className="help mb-2">
                       {bodyChecks(current.responseBody, current.responseChecks)}

@@ -77,7 +77,7 @@ export function bodyChecks(
     case "form":
       return "Form fields and text patterns checked.";
     case "json-like":
-      return "Recognised JSON-like fields and text patterns checked; the body is not valid JSON.";
+      return "JSON-like fields and text patterns checked. Recorded JSON is invalid.";
     case "unknown":
       return "Original check scope was not saved; review this saved body before sharing.";
     default:
