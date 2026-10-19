@@ -401,7 +401,8 @@ export function importIncident(
     pieces.push(value.slice(previous));
     return pieces.join("");
   };
-  const attempts = rawAttempts
+  const attempts = [...rawAttempts]
+    .sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt))
     .map((a, i) => ({
       ...a,
       id: scrubText(a.id, `attempt ${i + 1}.id`),
@@ -412,8 +413,7 @@ export function importIncident(
       >,
       requestBody: body(a.requestBody, `attempt ${i + 1}.requestBody`),
       responseBody: body(a.responseBody, `attempt ${i + 1}.responseBody`),
-    }))
-    .sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt));
+    }));
   if (new Set(attempts.map((a) => a.id)).size !== attempts.length)
     throw new Error(
       "Attempt identifiers become identical after redaction. Give them unique non-sensitive labels before importing.",
@@ -540,8 +540,8 @@ export function report(incident: Incident): string {
     "",
     `Sender time limit: ${incident.senderTimeoutMs} ms`,
     "",
-    ...incident.attempts.flatMap((a) => [
-      `## ${a.id}`,
+    ...incident.attempts.flatMap((a, i) => [
+      `## Attempt ${i + 1}: ${a.id}`,
       `Event: ${a.eventId}`,
       `Received: ${a.receivedAt}`,
       `Status: ${a.status ?? "not recorded"}; duration: ${a.durationMs} ms`,

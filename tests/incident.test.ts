@@ -365,3 +365,25 @@ it("keeps sentence punctuation after removing a recognised Bearer credential", (
     "Rejected Bearer [credential removed].",
   );
 });
+
+it("numbers redaction paths in the same chronological order as the timeline and report", () => {
+  const incident = importIncident(JSON.stringify(fixture()));
+  expect(incident.attempts.map((a) => a.id)).toEqual([
+    "attempt-01",
+    "attempt-02",
+  ]);
+  expect(incident.redactions).toContain(
+    "attempt 2.headers.Authorization: sensitive field",
+  );
+  expect(incident.redactions).toContain(
+    "attempt 2.requestBody.email: sensitive field",
+  );
+  expect(
+    incident.redactions.some((line) => line.startsWith("attempt 1.")),
+  ).toBe(false);
+  expect(report(incident)).toContain("## Attempt 2: attempt-02");
+  expect(
+    importIncident(JSON.stringify(incident), { restoreRedactions: true })
+      .redactions,
+  ).toEqual(incident.redactions);
+});
