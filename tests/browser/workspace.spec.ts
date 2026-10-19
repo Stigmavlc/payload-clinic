@@ -288,6 +288,33 @@ test("a redacted title survives reload and an unreadable saved copy is preserved
       localStorage.getItem("payload-clinic.incident.v1"),
     ),
   ).toBe("{unreadable");
+  await page.getByLabel("Synthetic examples").selectOption("inventory");
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBe("{unreadable");
+});
+
+test("blocked storage shows an unavailable warning on first visit", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      get() {
+        throw new DOMException("Storage denied", "SecurityError");
+      },
+    });
+  });
+  await page.goto("./");
+  await expect(
+    page.getByText(
+      "Browser storage is unavailable. Export the redacted report before closing.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/saved incident could not be reopened/),
+  ).not.toBeVisible();
 });
 
 test("multi-day attempts show dates and readable retry gaps", async ({

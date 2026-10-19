@@ -21,8 +21,13 @@ import { SignaturePanel } from "./SignaturePanel";
 import "./style.css";
 const STORAGE = "payload-clinic.incident.v1";
 function initial(): { incident: Incident; preserveSaved: boolean } {
+  let value: string | null;
   try {
-    const value = localStorage.getItem(STORAGE);
+    value = localStorage.getItem(STORAGE);
+  } catch {
+    return { incident: sampleIncident(), preserveSaved: false };
+  }
+  try {
     return {
       incident: value
         ? importIncident(value, { restoreRedactions: true })
@@ -120,7 +125,7 @@ function App() {
   function load(text: string, example?: "booking" | "inventory") {
     try {
       const safe = importIncident(text);
-      setPreserveSaved(false);
+      if (!example) setPreserveSaved(false);
       setIncident({ ...safe, ...(example ? { example } : {}) });
       setSelected(0);
       setCompare(Math.min(1, safe.attempts.length - 1));
