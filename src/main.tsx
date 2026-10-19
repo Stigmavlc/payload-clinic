@@ -123,8 +123,12 @@ function App() {
   }, [incident, preserveSaved]);
   const current =
     incident.attempts[Math.min(selected, incident.attempts.length - 1)];
-  const other =
-    incident.attempts[Math.min(compare, incident.attempts.length - 1)];
+  const selectedIndex = incident.attempts.indexOf(current);
+  const secondIndex =
+    compare >= incident.attempts.length || compare === selectedIndex
+      ? (selectedIndex + 1) % incident.attempts.length
+      : compare;
+  const other = incident.attempts[secondIndex];
   const differences = compareAttempts(current, other);
   function load(text: string, example?: "booking" | "inventory") {
     try {
@@ -437,55 +441,68 @@ function App() {
                     </p>
                   </div>
                 </div>
-                <label className="field max-w-md">
-                  Second attempt
-                  <select
-                    value={compare}
-                    onChange={(e) => setCompare(Number(e.target.value))}
-                  >
-                    {incident.attempts.map((a, i) => (
-                      <option key={a.id} value={i}>
-                        Attempt {i + 1}: {a.id} · {responseStatus(a.status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <dl className="comparison-summary">
-                  <div>
-                    <dt>Recorded gap, second minus first</dt>
-                    <dd className="mono">{formatGap(differences.gapMs)}</dd>
-                  </div>
-                  <div>
-                    <dt>Event identifier</dt>
-                    <dd>
-                      {differences.sameEvent
-                        ? "Same event identifier"
-                        : "Different event identifiers"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Redacted body</dt>
-                    <dd>
-                      {differences.sameBody
-                        ? "Identical after redaction"
-                        : "Different after redaction"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>HTTP status</dt>
-                    <dd className="mono">{differences.status}</dd>
-                  </div>
-                </dl>
-                <div className="payload-grid">
-                  <section>
-                    <h4 className="mb-3">{current.id}</h4>
-                    <pre tabIndex={0}>{current.requestBody}</pre>
-                  </section>
-                  <section>
-                    <h4 className="mb-3">{other.id}</h4>
-                    <pre tabIndex={0}>{other.requestBody}</pre>
-                  </section>
-                </div>
+                {incident.attempts.length < 2 ? (
+                  <p className="muted">
+                    A second attempt is needed to compare receiving-side
+                    records.
+                  </p>
+                ) : (
+                  <>
+                    <label className="field max-w-md">
+                      Second attempt
+                      <select
+                        value={secondIndex}
+                        onChange={(e) => setCompare(Number(e.target.value))}
+                      >
+                        {incident.attempts.map((a, i) => (
+                          <option
+                            key={a.id}
+                            value={i}
+                            disabled={i === selectedIndex}
+                          >
+                            Attempt {i + 1}: {a.id} · {responseStatus(a.status)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <dl className="comparison-summary">
+                      <div>
+                        <dt>Recorded gap, second minus first</dt>
+                        <dd className="mono">{formatGap(differences.gapMs)}</dd>
+                      </div>
+                      <div>
+                        <dt>Event identifier</dt>
+                        <dd>
+                          {differences.sameEvent
+                            ? "Same event identifier"
+                            : "Different event identifiers"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Redacted body</dt>
+                        <dd>
+                          {differences.sameBody
+                            ? "Identical after redaction"
+                            : "Different after redaction"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>HTTP status</dt>
+                        <dd className="mono">{differences.status}</dd>
+                      </div>
+                    </dl>
+                    <div className="payload-grid">
+                      <section>
+                        <h4 className="mb-3">{current.id}</h4>
+                        <pre tabIndex={0}>{current.requestBody}</pre>
+                      </section>
+                      <section>
+                        <h4 className="mb-3">{other.id}</h4>
+                        <pre tabIndex={0}>{other.requestBody}</pre>
+                      </section>
+                    </div>
+                  </>
+                )}
               </section>
             )}
             {tab === "signature" && <SignaturePanel />}

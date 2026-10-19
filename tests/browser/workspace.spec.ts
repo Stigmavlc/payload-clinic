@@ -8,8 +8,23 @@ test("sample timeline, comparison and report contain useful evidence", async ({
     page.getByText("Response reached the sender’s time limit", { exact: true }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "Compare attempts" }).click();
-  await page.getByLabel("Second attempt").selectOption("2");
+  await expect(page.getByLabel("Second attempt")).toHaveValue("2");
+  await expect(
+    page.getByLabel("Second attempt").locator('option[value="1"]'),
+  ).toHaveAttribute("disabled", "");
+  await expect(page.locator(".payload-grid h4")).toHaveText([
+    "delivery-7b",
+    "delivery-7c",
+  ]);
   await expect(page.getByText("2 minutes", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /delivery-7c/ }).click();
+  await expect(page.getByLabel("Second attempt")).not.toHaveValue("2");
+  await expect(page.locator(".payload-grid h4").first()).toHaveText(
+    "delivery-7c",
+  );
+  await expect(page.locator(".payload-grid h4").last()).not.toHaveText(
+    "delivery-7c",
+  );
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export report" }).click(),
@@ -583,4 +598,42 @@ test("imported records keep their identity and export has a visible mobile label
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("a single record explains that comparison needs another attempt", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  await page
+    .getByLabel("Or paste an incident")
+    .fill(
+      JSON.stringify({
+        title: "Single attempt",
+        senderTimeoutMs: 3000,
+        attempts: [
+          {
+            id: "only-one",
+            eventId: "evt-only",
+            receivedAt: "2026-10-18T09:00:00Z",
+            status: 200,
+            durationMs: 100,
+            headers: {},
+            requestBody: "{}",
+            responseBody: "",
+          },
+        ],
+      }),
+    );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  await page.getByRole("tab", { name: "Compare attempts" }).click();
+  await expect(
+    page.getByText(
+      "A second attempt is needed to compare receiving-side records.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByLabel("Second attempt")).toHaveCount(0);
+  await expect(page.locator(".comparison-summary")).toHaveCount(0);
 });
