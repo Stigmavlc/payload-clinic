@@ -6,6 +6,10 @@ Payload Clinic helps small software support teams explain failed webhook deliver
 
 ![Receiving-side delivery evidence](docs/screenshots/evidence.png)
 
+![Comparison of the slow response and retry](docs/screenshots/comparison.png)
+
+![A valid synthetic signature and timestamp](docs/screenshots/signature.png)
+
 ## Try a short investigation
 
 1. Open **Slow response and retries**. The first receiving-side record contains a 503 response.
@@ -92,7 +96,7 @@ The test suite covers chronological ordering, status interpretation, sender time
 
 Browser tests exercise a complete investigation and export, invalid and valid imports, redacted persistence and the full redaction log across reload, transient signing inputs, an expired timestamp, a 390 px layout, and keyboard focus containment and restoration. CI installs dependencies, runs the unit tests, builds the app and runs Chromium tests. Publishing depends on that verification job succeeding for the same commit.
 
-Screenshots show the application running with synthetic records. They are saved in `docs/screenshots/`.
+Screenshots show the application running with synthetic records at 1440 px. Run `CAPTURE_DOCS=1 npm run test:browser -- --grep "capture the three"` to refresh them in `docs/screenshots/`.
 
 ## Design and implementation
 

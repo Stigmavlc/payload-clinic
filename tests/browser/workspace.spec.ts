@@ -174,3 +174,45 @@ test("expired signatures show a rejected timestamp before the matching digest", 
     "Digest comparison: matches",
   );
 });
+
+test("capture the three documented views at desktop width", async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.CAPTURE_DOCS,
+    "Documentation capture is requested separately.",
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("./");
+  await page.getByRole("button", { name: /delivery-7b/ }).click();
+  await page
+    .getByRole("heading", { name: "Delivery timeline", exact: true })
+    .click();
+  await page.mouse.move(0, 0);
+  await page.screenshot({
+    path: "docs/screenshots/evidence.png",
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "Compare attempts" }).click();
+  await page.getByLabel("Second attempt").selectOption("2");
+  await page.mouse.move(0, 0);
+  await page.screenshot({
+    path: "docs/screenshots/comparison.png",
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "Signature check" }).click();
+  await page
+    .getByRole("button", { name: "Load signed sample", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Verify signature", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Signature matches", exact: true }),
+  ).toBeVisible();
+  await page.mouse.move(0, 0);
+  await page.screenshot({
+    path: "docs/screenshots/signature.png",
+    fullPage: true,
+  });
+});
