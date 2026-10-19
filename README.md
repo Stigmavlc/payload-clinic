@@ -35,19 +35,19 @@ The examples are fictional. Observations describe the supplied records; investig
 
 Use synthetic or already redacted records and inspect the result before sharing it. Input stays in the browser. The static host receives normal page and asset requests; incident and signature inputs remain local.
 
-Sensitive JSON fields and headers are removed when their names contain authorization, cookie, signature, token, secret, password, API key or email. The same name checks apply to form-encoded bodies in `key=value&key=value` format. Text checks cover email addresses, long Bearer tokens containing credential punctuation or digits, valid long Basic base64 credentials containing a decoded colon, JWT-shaped strings, Stripe `sk_`, `pk_` and `rk_` live/test keys, and `whsec_` signing secrets. Bare Bearer/Basic credentials and Stripe v1 digests are also collected from headers for repeated-value checks.
+The importer removes header, JSON and form values whose field names contain authorization, cookie, signature, token, secret, password, API key or email. It also checks text for email addresses, JWTs, Stripe API keys and webhook secrets, long Bearer credentials with digits or mixed token characters, and Basic credentials that decode to a user and password. Recognised credentials found in sensitive fields are checked for repeated appearances elsewhere in the incident.
 
-Repeated matching applies to unbroken values of at least 12 characters containing a number or credential punctuation, including long hexadecimal digests. It respects token boundaries and leaves ordinary field names intact. Email and credential patterns are still removed from field names. JSON bodies retain their original number tokens and formatting outside redacted strings and values. Large numeric identifiers, decimal spelling and exponent notation therefore remain available as recorded evidence. Invalid JSON bodies are retained as redacted text; recognised form bodies are encoded again after redaction. Unknown incident properties are discarded.
+JSON and form bodies keep their source formatting outside the fields and values removed. Other bodies remain text. Unknown incident properties are discarded. The redaction log uses the chronological attempt numbers shown in the timeline and report.
 
-These checks cover particular patterns. Names, addresses, encoded values, unfamiliar credential formats and private business details can remain. The redaction log records recognised removals and is preserved when reopening a saved incident.
+These checks cover particular patterns. Names, addresses, encoded values, unfamiliar credential formats and private business details can remain. Review both the log and the remaining content before sharing a report.
 
-The redacted incident and its log are saved in `localStorage` under `payload-clinic.incident.v1`. This storage is unencrypted and readable by scripts on the same origin. **Remove saved copy** deletes it, while the current view stays in memory. Importing a record or choosing an example saves the new incident. Clearing site storage also removes the saved copy.
+The redacted incident and its complete log are saved in `localStorage` under `payload-clinic.incident.v1`. This storage is unencrypted and readable by scripts on the same origin. Saved records may be larger than their source file because replacement labels and log entries take space. If the browser refuses a save, the workspace tells you to export before closing. If a saved record cannot be reopened, it is kept unchanged and a warning appears above the storage controls. Importing another incident replaces that saved copy. **Remove saved copy** deletes it while leaving the current view in memory. Clearing site storage also removes it.
 
 Signing inputs use separate, temporary component memory. Leaving **Signature check** or pressing **Clear sensitive inputs** clears them. Storage and reports contain incident evidence only. A digest match confirms the supplied key and bytes; the timestamp must also pass the five-minute check. Event authenticity and successful processing require evidence from the production systems.
 
 ## Incident format
 
-Import a JSON file or paste a JSON object. The whole file is limited to 1 MB, with 1 to 100 attempts and a title of 1 to 180 characters. Unknown properties are ignored. Header names map to strings. Attempt identifiers must be unique; event identifiers may repeat.
+Import a JSON file or paste a JSON object. The whole file is limited to 1 MB, with 1 to 100 attempts and a title of 1 to 180 characters. Unknown properties are ignored. Header names map to strings. Attempt identifiers must remain unique after redaction; use distinct labels that contain no personal details. Event identifiers may repeat.
 
 ```json
 {
@@ -92,9 +92,9 @@ For Linux environments without browser system libraries, use `npx playwright ins
 
 ## Verification
 
-The test suite covers chronological ordering, status interpretation, sender time limits, invalid JSON, malformed import structures, duplicate identifiers, redaction across bodies and nested object keys, repeated secrets, ordinary authentication error messages, lossless numeric JSON bodies and report content. A near-limit encoded-body test checks import and reopen time against a 1.5 second budget. Cryptographic tests include RFC 4231 test case 1 and the supplied Stripe signing format, with changed bytes, missing or malformed signatures and expired timestamps.
+Unit tests exercise ordering and retry intervals, status interpretation, validation, redaction, storage recovery and report output. They cover large batches of email events, encoded attachments, original body formatting and numeric identifiers. Signature tests use RFC 4231 and the Stripe signing format, including changed bytes, malformed headers and expired timestamps.
 
-Browser tests exercise a complete investigation and export, invalid and valid imports, redacted persistence and the full redaction log across reload, transient signing inputs, an expired timestamp, a 390 px layout, and keyboard focus containment and restoration. CI installs dependencies, runs the unit tests, builds the app and runs Chromium tests. Publishing depends on that verification job succeeding for the same commit. Deployment jobs queue per branch so that separate commits do not try to deploy to GitHub Pages simultaneously.
+Browser tests follow an investigation through import, reload and export, then check transient signing inputs, keyboard navigation, spacing and a 390 px layout. CI runs the unit tests, production build and Chromium tests before publishing that commit to GitHub Pages.
 
 Screenshots show the application running with synthetic records at 1440 px. Run `CAPTURE_DOCS=1 npm run test:browser -- --grep "capture the three"` to refresh them in `docs/screenshots/`.
 
