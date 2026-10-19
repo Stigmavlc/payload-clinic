@@ -219,3 +219,21 @@ it("describes the limits of report redaction honestly", () => {
   );
   expect(output).not.toContain("secrets are never included");
 });
+
+it("imports and reopens a near-limit attachment without repeated email rescanning", () => {
+  const data = fixture();
+  data.attempts[0].requestBody = JSON.stringify({
+    attachment: "A".repeat(950000),
+  });
+  const text = JSON.stringify(data);
+  expect(new TextEncoder().encode(text).length).toBeLessThan(1000000);
+  const started = performance.now();
+  const incident = importIncident(text);
+  const reopened = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  expect(JSON.parse(reopened.attempts[1].requestBody).attachment).toHaveLength(
+    950000,
+  );
+  expect(performance.now() - started).toBeLessThan(1500);
+});

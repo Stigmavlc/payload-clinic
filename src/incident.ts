@@ -21,7 +21,8 @@ export type Finding = {
 };
 const sensitive =
   /authorization|cookie|signature|token|secret|password|api.?key|email/i;
-const email = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/gi;
+const email =
+  /(?<![A-Z0-9.!#$%&'*+/=?^_`{|}~-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Z0-9-]{1,63}(?:\.[A-Z0-9-]{1,63})+(?![A-Z0-9-])/gi;
 const token =
   /\b(?:(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/gi;
 const authorizationText = /\b(Bearer|Basic)\s+([A-Za-z0-9._~+/-]+={0,2})/gi;
