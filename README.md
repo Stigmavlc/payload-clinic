@@ -88,7 +88,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-For Linux environments without browser system libraries, use `npx playwright install --with-deps chromium`. The browser tests start their own local Vite server on port 4173. `npm run preview` serves a production build.
+For Linux environments without browser system libraries, use `npx playwright install --with-deps chromium`. Browser tests start a fresh Vite server on port 4177 and fail if that port is already occupied. They never reuse a preview or development server. `npm run preview` serves a production build on port 4173 by default.
 
 ## Verification
 
