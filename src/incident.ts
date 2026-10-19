@@ -71,9 +71,27 @@ type LooseField = {
 function looseFields(value: string): LooseField[] {
   const fields: LooseField[] = [];
   let base = 0;
+  let records = 0;
   while (base < value.length) {
+    const scanner = createScanner(value, true);
+    scanner.setPosition(base);
+    let kind = scanner.scan();
+    while (
+      ![
+        tokenKinds.OpenBraceToken,
+        tokenKinds.OpenBracketToken,
+        tokenKinds.EOF,
+      ].includes(kind)
+    )
+      kind = scanner.scan();
+    if (kind === tokenKinds.EOF) break;
+    base = scanner.getTokenOffset();
+    const record = records++;
     const tree = parseTree(value.slice(base), [], { allowTrailingComma: true });
-    if (!tree) break;
+    if (!tree) {
+      base++;
+      continue;
+    }
     const walk = (node: Node, depth = 0): void => {
       if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
       if (
@@ -102,9 +120,12 @@ function looseFields(value: string): LooseField[] {
         }
         fields.push({
           key: node.children[0].value as string,
-          path: getNodePath(node.children[0])
-            .slice(0, -1)
-            .concat(node.children[0].value),
+          path: [
+            record,
+            ...getNodePath(node.children[0])
+              .slice(0, -1)
+              .concat(node.children[0].value),
+          ],
           start: base + start,
           end: base + end,
           node: child,
@@ -117,6 +138,7 @@ function looseFields(value: string): LooseField[] {
     if (next <= base) break;
     base = next;
   }
+  if (records === 1) fields.forEach((field) => field.path.shift());
   return fields.sort((a, b) => a.start - b.start || b.end - a.end);
 }
 const emptyLooseField = (field: LooseField, value: string): boolean => {

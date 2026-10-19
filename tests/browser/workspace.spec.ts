@@ -85,7 +85,8 @@ test("invalid input stays open with an actionable error and valid import is reda
           headers: {},
           requestBody:
             "verbose&token=second-secret-49&quantity=3&note=second-secret-49",
-          responseBody: '{"password":"third-secret-49","amount":10.50,}',
+          responseBody:
+            '{"password":"third-secret-49"},\n{"token":"fourth-secret-49"}',
         },
       ],
     }),
@@ -100,6 +101,7 @@ test("invalid input stays open with an actionable error and valid import is reda
   expect(saved).not.toContain("sample@example.test");
   expect(saved).not.toContain("second-secret-49");
   expect(saved).not.toContain("third-secret-49");
+  expect(saved).not.toContain("fourth-secret-49");
   await page.getByText("Headers and redaction log").click();
   const originalSaved = await page.evaluate(() =>
     localStorage.getItem("payload-clinic.incident.v1"),

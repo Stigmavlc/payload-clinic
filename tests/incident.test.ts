@@ -267,7 +267,9 @@ it("exports readable fenced bodies even when recorded text contains a Markdown f
   const data = fixture();
   data.attempts[0].responseBody = "```\nrecorded line\n```";
   const output = report(importIncident(JSON.stringify(data)));
-  expect(output).toContain("Request:\nJSON fields and text patterns checked.\n```json\n{");
+  expect(output).toContain(
+    "Request:\nJSON fields and text patterns checked.\n```json\n{",
+  );
   expect(output).toContain(
     "Response:\nText patterns only; this body has no JSON or form field checks.\n````text\n```\nrecorded line\n```\n````",
   );
@@ -634,7 +636,7 @@ it.each([
   [
     '{"token":"synthetic-token-903"}\n{"token":"synthetic-token-904"}',
     '{"token":"[removed]"}\n{"token":"[removed]"}',
-    "token",
+    "[0].token|[1].token",
   ],
   [
     '{ // observed\n "secret":"synthetic-secret-905", "ok":true}',
@@ -652,7 +654,12 @@ it.each([
     const imported = importIncident(JSON.stringify(source));
     expect(imported.attempts[0].requestBody).toBe(safe);
     expect(imported.redactions).toEqual([
-      `attempt 1.requestBody.${field}: sensitive field`,
+      ...field
+        .split("|")
+        .map(
+          (item) =>
+            `attempt 1.requestBody${item.startsWith("[") ? "" : "."}${item}: sensitive field`,
+        ),
     ]);
     const first = importIncident(JSON.stringify(imported), {
       restoreRedactions: true,
@@ -710,3 +717,34 @@ it("preserves empty values and boolean indicators in malformed JSON", () => {
   expect(imported.attempts[0].requestBody).toBe(source.attempts[0].requestBody);
   expect(imported.redactions).toEqual([]);
 });
+
+it.each([",\n", "}\n", "]\n", "}, ]\n"])(
+  "redacts every record after separator %j with distinct log positions",
+  (separator) => {
+    const source = fixture();
+    const raw = [
+      '{"id":"e1","token":"synthetic-record-941"}',
+      '{"id":"e2","token":"synthetic-record-942"}',
+      '{"id":"e3","token":"synthetic-record-943"}',
+    ].join(separator);
+    source.attempts = [
+      { ...source.attempts[1], requestBody: raw, responseBody: "" },
+    ];
+    const imported = importIncident(JSON.stringify(source));
+    const expected = raw.replace(/synthetic-record-94[123]/g, "[removed]");
+    expect(imported.attempts[0].requestBody).toBe(expected);
+    expect(imported.redactions).toEqual(
+      [0, 1, 2].map(
+        (index) => `attempt 1.requestBody[${index}].token: sensitive field`,
+      ),
+    );
+    let reopened = imported;
+    for (let i = 0; i < 2; i++) {
+      reopened = importIncident(JSON.stringify(reopened), {
+        restoreRedactions: true,
+      });
+      expect(reopened).toEqual(imported);
+      expect(report(reopened)).not.toMatch(/synthetic-record-94[123]/);
+    }
+  },
+);
