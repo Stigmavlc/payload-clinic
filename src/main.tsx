@@ -213,8 +213,8 @@ function App() {
                     if (tab === "signature") setTab("evidence");
                   }}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="mono text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="mono text-xs whitespace-nowrap">
                       {new Date(a.receivedAt)
                         .toISOString()
                         .slice(0, 19)
