@@ -241,7 +241,7 @@ export function importIncident(
   };
   const body = (value: string, path: string): string => {
     try {
-      return JSON.stringify(scrub(JSON.parse(value), path), null, 2);
+      JSON.parse(value);
     } catch {
       const fields = formFields(value);
       if (fields) {
@@ -257,6 +257,88 @@ export function importIncident(
       }
       return scrubText(value, path);
     }
+    // Patch only redacted tokens. Parsing and reserialising the whole body
+    // would round large identifiers and change the recorded number spelling.
+    const patches: { start: number; end: number; replacement: string }[] = [];
+    let cursor = 0;
+    const whitespace = () => {
+      while (/\s/.test(value[cursor] ?? "") && cursor < value.length) cursor++;
+    };
+    const stringToken = () => {
+      const start = cursor++;
+      while (cursor < value.length) {
+        const char = value[cursor++];
+        if (char === "\\") cursor++;
+        else if (char === '"') break;
+      }
+      return {
+        start,
+        end: cursor,
+        decoded: JSON.parse(value.slice(start, cursor)) as string,
+      };
+    };
+    const visit = (currentPath: string, apply: boolean, depth = 0): void => {
+      if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
+      whitespace();
+      const char = value[cursor];
+      if (char === '"') {
+        const item = stringToken();
+        if (apply) {
+          const clean = scrubText(item.decoded, currentPath);
+          if (clean !== item.decoded)
+            patches.push({ ...item, replacement: JSON.stringify(clean) });
+        }
+      } else if (char === "{") {
+        cursor++;
+        whitespace();
+        while (value[cursor] !== "}") {
+          const key = stringToken();
+          const safeKey = apply
+            ? scrubText(key.decoded, currentPath, false)
+            : key.decoded;
+          if (apply && safeKey !== key.decoded)
+            patches.push({ ...key, replacement: JSON.stringify(safeKey) });
+          whitespace();
+          cursor++; // colon, already checked by JSON.parse
+          whitespace();
+          const start = cursor;
+          const remove = apply && sensitive.test(key.decoded);
+          visit(`${currentPath}.${safeKey}`, apply && !remove, depth + 1);
+          if (remove) {
+            redactions.add(`${currentPath}.${safeKey}: sensitive field`);
+            patches.push({ start, end: cursor, replacement: '"[removed]"' });
+          }
+          whitespace();
+          if (value[cursor] !== ",") break;
+          cursor++;
+          whitespace();
+        }
+        cursor++;
+      } else if (char === "[") {
+        cursor++;
+        whitespace();
+        let index = 0;
+        while (value[cursor] !== "]") {
+          visit(`${currentPath}[${index++}]`, apply, depth + 1);
+          whitespace();
+          if (value[cursor] !== ",") break;
+          cursor++;
+        }
+        cursor++;
+      } else {
+        while (cursor < value.length && !/[\s,}\]]/.test(value[cursor]))
+          cursor++;
+      }
+    };
+    visit(path, true);
+    const pieces: string[] = [];
+    let previous = 0;
+    for (const patch of patches.sort((a, b) => a.start - b.start)) {
+      pieces.push(value.slice(previous, patch.start), patch.replacement);
+      previous = patch.end;
+    }
+    pieces.push(value.slice(previous));
+    return pieces.join("");
   };
   const attempts = rawAttempts
     .map((a, i) => ({

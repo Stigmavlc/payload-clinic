@@ -173,7 +173,7 @@ it("exports readable fenced bodies even when recorded text contains a Markdown f
   const data = fixture();
   data.attempts[0].responseBody = "```\nrecorded line\n```";
   const output = report(importIncident(JSON.stringify(data)));
-  expect(output).toContain("Request:\n```json\n{\n");
+  expect(output).toContain("Request:\n```json\n{");
   expect(output).toContain(
     "Response:\n````text\n```\nrecorded line\n```\n````",
   );
@@ -236,4 +236,37 @@ it("imports and reopens a near-limit attachment without repeated email rescannin
     950000,
   );
   expect(performance.now() - started).toBeLessThan(1500);
+});
+
+it("preserves large numeric identifiers and number spellings across import, reload, comparison and report", () => {
+  const data = fixture();
+  data.attempts[0].requestBody =
+    '{ "id": 12345678901234567890, "amount": 10.50, "scale": 1e2, "zero": -0, "secret": {"value": 3} }';
+  data.attempts[1].requestBody =
+    '{ "id": 12345678901234567891, "amount": 10.50, "scale": 1e2, "zero": -0, "secret": {"value": 3} }';
+  const incident = importIncident(JSON.stringify(data));
+  const expected = data.attempts[0].requestBody.replace(
+    '{"value": 3}',
+    '"[removed]"',
+  );
+  expect(incident.attempts[1].requestBody).toBe(expected);
+  expect(
+    compareAttempts(incident.attempts[0], incident.attempts[1]).sameBody,
+  ).toBe(false);
+  const reopened = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  expect(reopened.attempts[1].requestBody).toBe(expected);
+  expect(report(reopened)).toContain(expected);
+});
+it("redacts nested and escaped JSON string tokens without normalising surrounding evidence", () => {
+  const data = fixture();
+  data.attempts[0].requestBody = String.raw`{"items":[{"e\u006dail":"person@example.test","note":"a \\\"quoted\\\" value"}],"large":98765432109876543210}`;
+  const incident = importIncident(JSON.stringify(data));
+  const result = incident.attempts[1].requestBody;
+  expect(result).not.toContain("person@example.test");
+  expect(result).toContain('"large":98765432109876543210');
+  expect(JSON.parse(result).items[0].note).toBe(
+    JSON.parse(data.attempts[0].requestBody).items[0].note,
+  );
 });
