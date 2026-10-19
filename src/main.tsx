@@ -9,6 +9,7 @@ import {
   UploadIcon,
 } from "@radix-ui/react-icons";
 import {
+  bodyChecks,
   compareAttempts,
   findings,
   formatGap,
@@ -394,6 +395,9 @@ function App() {
                       <h3>Request body</h3>
                       <span className="eyebrow">Redacted</span>
                     </div>
+                    <p className="help mb-2">
+                      {bodyChecks(current.requestBody)}
+                    </p>
                     <pre tabIndex={0} aria-label="Redacted request body">
                       {current.requestBody}
                     </pre>
@@ -403,6 +407,9 @@ function App() {
                       <h3>Response body</h3>
                       <span className="eyebrow">Redacted</span>
                     </div>
+                    <p className="help mb-2">
+                      {bodyChecks(current.responseBody)}
+                    </p>
                     <pre tabIndex={0} aria-label="Redacted response body">
                       {current.responseBody || "(empty response body)"}
                     </pre>

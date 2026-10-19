@@ -77,8 +77,8 @@ test("invalid input stays open with an actionable error and valid import is reda
           durationMs: 80,
           headers: {},
           requestBody:
-            "token=second-secret-49&quantity=3&note=second-secret-49",
-          responseBody: '{"password":"third-secret-49","amount":10.50}',
+            "verbose&token=second-secret-49&quantity=3&note=second-secret-49",
+          responseBody: '{"password":"third-secret-49","amount":10.50,}',
         },
       ],
     }),

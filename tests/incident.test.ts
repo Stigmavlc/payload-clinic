@@ -267,9 +267,9 @@ it("exports readable fenced bodies even when recorded text contains a Markdown f
   const data = fixture();
   data.attempts[0].responseBody = "```\nrecorded line\n```";
   const output = report(importIncident(JSON.stringify(data)));
-  expect(output).toContain("Request:\n```json\n{");
+  expect(output).toContain("Request:\nJSON fields and text patterns checked.\n```json\n{");
   expect(output).toContain(
-    "Response:\n````text\n```\nrecorded line\n```\n````",
+    "Response:\nText patterns only; this body has no JSON or form field checks.\n````text\n```\nrecorded line\n```\n````",
   );
 });
 
@@ -618,4 +618,95 @@ it("preserves empty collections and boolean form and header values through reope
   expect(
     importIncident(JSON.stringify(incident), { restoreRedactions: true }),
   ).toEqual(incident);
+});
+
+it.each([
+  [
+    '{"id":"evt-safe","password":"synthetic-password-901",}',
+    '{"id":"evt-safe","password":"[removed]",}',
+    "password",
+  ],
+  [
+    '{"profile":{"api_token":"synthetic-cut-902',
+    '{"profile":{"api_token":"[removed]"',
+    "profile.api_token",
+  ],
+  [
+    '{"token":"synthetic-token-903"}\n{"token":"synthetic-token-904"}',
+    '{"token":"[removed]"}\n{"token":"[removed]"}',
+    "token",
+  ],
+  [
+    '{ // observed\n "secret":"synthetic-secret-905", "ok":true}',
+    '{ // observed\n "secret":"[removed]", "ok":true}',
+    "secret",
+  ],
+  ['{"password":synthetic-bare-906}', '{"password":"[removed]"}', "password"],
+])(
+  "redacts malformed field values without repairing other bytes",
+  (raw, safe, field) => {
+    const source = fixture();
+    source.attempts = [
+      { ...source.attempts[1], requestBody: raw, responseBody: "" },
+    ];
+    const imported = importIncident(JSON.stringify(source));
+    expect(imported.attempts[0].requestBody).toBe(safe);
+    expect(imported.redactions).toEqual([
+      `attempt 1.requestBody.${field}: sensitive field`,
+    ]);
+    const first = importIncident(JSON.stringify(imported), {
+      restoreRedactions: true,
+    });
+    const second = importIncident(JSON.stringify(first), {
+      restoreRedactions: true,
+    });
+    expect(first).toEqual(imported);
+    expect(second).toEqual(imported);
+    expect(report(second)).not.toMatch(
+      /synthetic-(?:password|cut|token|secret|bare)/,
+    );
+  },
+);
+it("redacts a flag-first form and marks unstructured body checks in the report", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      requestBody: "verbose&token=synthetic-form-907&qty=2",
+      responseBody: "<status>ok</status>",
+    },
+  ];
+  const imported = importIncident(JSON.stringify(source));
+  expect(imported.attempts[0].requestBody).toBe(
+    "verbose&token=[removed]&qty=2",
+  );
+  expect(imported.redactions).toEqual([
+    "attempt 1.requestBody.token: sensitive form field",
+  ]);
+  const first = importIncident(JSON.stringify(imported), {
+    restoreRedactions: true,
+  });
+  const second = importIncident(JSON.stringify(first), {
+    restoreRedactions: true,
+  });
+  expect(first).toEqual(imported);
+  expect(second).toEqual(imported);
+  expect(report(second)).toContain(
+    "Text patterns only; this body has no JSON or form field checks.",
+  );
+  expect(report(second)).not.toContain("synthetic-form-907");
+});
+it("preserves empty values and boolean indicators in malformed JSON", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      requestBody:
+        '{"token":"","secret":null,"email_verified":false,"has_signature":true,"emails":[],"cookies":{},}',
+      responseBody: "",
+    },
+  ];
+  const imported = importIncident(JSON.stringify(source));
+  expect(imported.attempts[0].requestBody).toBe(source.attempts[0].requestBody);
+  expect(imported.redactions).toEqual([]);
 });

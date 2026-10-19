@@ -1,3 +1,7 @@
+import * as jsonc from "jsonc-parser";
+const tokenKinds = (jsonc as unknown as { SyntaxKind: Record<string, number> })
+  .SyntaxKind;
+import { createScanner, getNodePath, parseTree, type Node } from "jsonc-parser";
 export type Attempt = {
   id: string;
   eventId: string;
@@ -35,6 +39,109 @@ const credentialLike = (value: string): boolean =>
   (/[0-9_+/=.-]/.test(value) || /^[a-f0-9]{32,}$/i.test(value));
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
+
+const formFields = (value: string): URLSearchParams | null => {
+  const text = value.trim();
+  return text.includes("=") &&
+    /^[^&=\s]+(?:=[^\r\n&]*)?(?:&[^&=\s]+(?:=[^\r\n&]*)?)*$/.test(text)
+    ? new URLSearchParams(text)
+    : null;
+};
+const looksLikeJSON = (value: string) => /^\s*(?:[\[{]|\/[/\*])/.test(value);
+export function bodyChecks(value: string): string {
+  if (!value) return "No body recorded.";
+  try {
+    JSON.parse(value);
+    return "JSON fields and text patterns checked.";
+  } catch {
+    /* Keep the source bytes. */
+  }
+  if (formFields(value)) return "Form fields and text patterns checked.";
+  if (looksLikeJSON(value))
+    return "Recognised JSON-like fields and text patterns checked; the body is not valid JSON.";
+  return "Text patterns only; this body has no JSON or form field checks.";
+}
+type LooseField = {
+  key: string;
+  path: (string | number)[];
+  start: number;
+  end: number;
+  node?: Node;
+};
+function looseFields(value: string): LooseField[] {
+  const fields: LooseField[] = [];
+  let base = 0;
+  while (base < value.length) {
+    const tree = parseTree(value.slice(base), [], { allowTrailingComma: true });
+    if (!tree) break;
+    const walk = (node: Node, depth = 0): void => {
+      if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
+      if (
+        node.type === "property" &&
+        node.children?.[0] &&
+        typeof node.colonOffset === "number"
+      ) {
+        const child = node.children[1];
+        let start = child?.offset ?? node.colonOffset + 1;
+        let end = child ? child.offset + child.length : start;
+        if (!child) {
+          const scanner = createScanner(value.slice(base), true);
+          scanner.setPosition(start);
+          const token = scanner.scan();
+          start = scanner.getTokenOffset();
+          if (
+            ![
+              tokenKinds.CloseBraceToken,
+              tokenKinds.CloseBracketToken,
+              tokenKinds.CommaToken,
+              tokenKinds.EOF,
+            ].includes(token)
+          )
+            end = start + scanner.getTokenLength();
+          else end = start;
+        }
+        fields.push({
+          key: node.children[0].value as string,
+          path: getNodePath(node.children[0])
+            .slice(0, -1)
+            .concat(node.children[0].value),
+          start: base + start,
+          end: base + end,
+          node: child,
+        });
+      }
+      node.children?.forEach((child) => walk(child, depth + 1));
+    };
+    walk(tree);
+    const next = base + tree.offset + tree.length;
+    if (next <= base) break;
+    base = next;
+  }
+  return fields.sort((a, b) => a.start - b.start || b.end - a.end);
+}
+const emptyLooseField = (field: LooseField, value: string): boolean => {
+  const node = field.node;
+  const recorded = value.slice(field.start, field.end);
+  if (["null", "true", "false", '\"\"'].includes(recorded)) return true;
+  if (
+    node &&
+    (node.type === "array" || node.type === "object") &&
+    !node.children?.length
+  ) {
+    const scanner = createScanner(recorded, true);
+    const opening = scanner.scan(),
+      closing = scanner.scan(),
+      end = scanner.scan();
+    return (
+      end === tokenKinds.EOF &&
+      ((opening === tokenKinds.OpenBraceToken &&
+        closing === tokenKinds.CloseBraceToken) ||
+        (opening === tokenKinds.OpenBracketToken &&
+          closing === tokenKinds.CloseBracketToken))
+    );
+  }
+  return false;
+};
 
 /** Validate documented fields and redact recognised patterns before storage. */
 export function importIncident(
@@ -143,10 +250,6 @@ export function importIncident(
   const remember = (value: string) => {
     if (credentialLike(value)) knownSecrets.add(value);
   };
-  const formFields = (value: string): URLSearchParams | null =>
-    /^[^=&\s]+=[^\r\n]*$/.test(value.trim())
-      ? new URLSearchParams(value.trim())
-      : null;
   const collect = (value: unknown, path: string, depth = 0): void => {
     if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
     if (Array.isArray(value))
@@ -180,6 +283,14 @@ export function importIncident(
         formFields(body)?.forEach((v, key) => {
           if (sensitiveField(key)) remember(v);
         });
+        if (looksLikeJSON(body))
+          for (const field of looseFields(body)) {
+            if (
+              sensitiveField(field.key) &&
+              typeof field.node?.value === "string"
+            )
+              remember(field.node.value);
+          }
       }
     }
   // A shared trie finds repeated values in one scan of each text field.
@@ -333,6 +444,34 @@ export function importIncident(
     try {
       JSON.parse(value);
     } catch {
+      if (looksLikeJSON(value)) {
+        const patches = looseFields(value).filter(
+          (field) =>
+            sensitiveField(field.key) &&
+            field.end > field.start &&
+            !emptyLooseField(field, value),
+        );
+        const pieces: string[] = [];
+        let cursor = 0;
+        for (const field of patches) {
+          if (field.start < cursor) continue;
+          pieces.push(scrubText(value.slice(cursor, field.start), path));
+          pieces.push('"[removed]"');
+          const safePath = scrubText(
+            field.path
+              .map((part) =>
+                typeof part === "number" ? `[${part}]` : `.${part}`,
+              )
+              .join(""),
+            path,
+          );
+          if (value.slice(field.start, field.end) !== '"[removed]"')
+            redactions.add(`${path}${safePath}: sensitive field`);
+          cursor = field.end;
+        }
+        pieces.push(scrubText(value.slice(cursor), path));
+        return pieces.join("");
+      }
       const fields = formFields(value);
       if (fields) {
         const readableEncoding = (text: string) =>
@@ -677,9 +816,11 @@ export function report(incident: Incident): string {
         : "No headers recorded",
       "",
       "Request:",
+      bodyChecks(a.requestBody),
       fenced(a.requestBody),
       "",
       "Response:",
+      bodyChecks(a.responseBody),
       fenced(a.responseBody || "(empty response body)"),
       "",
     ]),
