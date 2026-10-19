@@ -22,7 +22,9 @@ const STORAGE = "payload-clinic.incident.v1";
 function initial(): Incident {
   try {
     const value = localStorage.getItem(STORAGE);
-    return value ? importIncident(value) : sampleIncident();
+    return value
+      ? importIncident(value, { restoreRedactions: true })
+      : sampleIncident();
   } catch {
     return sampleIncident();
   }

@@ -28,7 +28,10 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Import only the documented fields. Raw input is never returned or persisted. */
-export function importIncident(text: string): Incident {
+export function importIncident(
+  text: string,
+  options: { restoreRedactions?: boolean } = {},
+): Incident {
   if (new TextEncoder().encode(text).length > 1_000_000)
     throw new Error(
       "The sample is larger than 1 MB. Import a smaller, redacted incident.",
@@ -204,6 +207,12 @@ export function importIncident(text: string): Incident {
       responseBody: body(a.responseBody, `attempt ${i + 1}.responseBody`),
     }))
     .sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt));
+  if (options.restoreRedactions && Array.isArray(input.redactions)) {
+    for (const entry of input.redactions.slice(0, 10000)) {
+      if (typeof entry === "string" && entry.length <= 1000)
+        redactions.add(scrubText(entry, "saved redaction log"));
+    }
+  }
   return {
     title: scrubText(input.title, "title"),
     senderTimeoutMs: input.senderTimeoutMs,

@@ -32,27 +32,25 @@ test("invalid input stays open with an actionable error and valid import is reda
   await page.getByLabel("Or paste an incident").fill("{");
   await page.getByRole("button", { name: "Validate and import" }).click();
   await expect(page.getByRole("alert")).toContainText("not valid JSON");
-  await page
-    .getByLabel("Or paste an incident")
-    .fill(
-      JSON.stringify({
-        title: "Imported incident",
-        senderTimeoutMs: 2000,
-        attempts: [
-          {
-            id: "attempt-48",
-            eventId: "evt-48",
-            receivedAt: "2026-10-18T14:00:00Z",
-            status: 422,
-            durationMs: 90,
-            headers: { Authorization: "Bearer topsecret-48" },
-            requestBody:
-              '{"email":"sample@example.test","secret":"topsecret-48"}',
-            responseBody: "topsecret-48",
-          },
-        ],
-      }),
-    );
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Imported incident",
+      senderTimeoutMs: 2000,
+      attempts: [
+        {
+          id: "attempt-48",
+          eventId: "evt-48",
+          receivedAt: "2026-10-18T14:00:00Z",
+          status: 422,
+          durationMs: 90,
+          headers: { Authorization: "Bearer topsecret-48" },
+          requestBody:
+            '{"email":"sample@example.test","secret":"topsecret-48"}',
+          responseBody: "topsecret-48",
+        },
+      ],
+    }),
+  );
   await page.getByRole("button", { name: "Validate and import" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(
@@ -61,7 +59,16 @@ test("invalid input stays open with an actionable error and valid import is reda
   const saved = await page.evaluate(() => JSON.stringify(localStorage));
   expect(saved).not.toContain("topsecret-48");
   expect(saved).not.toContain("sample@example.test");
+  await page.getByText("Headers and redaction log").click();
+  const originalLog = await page
+    .locator(".redaction-list li")
+    .allTextContents();
+  expect(originalLog.length).toBeGreaterThan(2);
   await page.reload();
+  await page.getByText("Headers and redaction log").click();
+  expect(await page.locator(".redaction-list li").allTextContents()).toEqual(
+    originalLog,
+  );
   await expect(
     page.getByRole("heading", { name: "Imported incident" }),
   ).toBeVisible();
