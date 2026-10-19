@@ -347,6 +347,21 @@ export function compareAttempts(left: Attempt, right: Attempt) {
 }
 
 export function report(incident: Incident): string {
+  const fenced = (body: string): string => {
+    const length = Math.max(
+      3,
+      ...[...body.matchAll(/`+/g)].map((match) => match[0].length + 1),
+    );
+    const fence = "`".repeat(length);
+    let language = "text";
+    try {
+      JSON.parse(body);
+      language = "json";
+    } catch {
+      /* Keep the recorded text. */
+    }
+    return `${fence}${language}\n${body}\n${fence}`;
+  };
   return [
     `# ${incident.title}`,
     "",
@@ -365,10 +380,10 @@ export function report(incident: Incident): string {
       ),
       "",
       "Request:",
-      a.requestBody,
+      fenced(a.requestBody),
       "",
       "Response:",
-      a.responseBody,
+      fenced(a.responseBody),
       "",
     ]),
     "## Redactions",

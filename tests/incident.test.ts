@@ -168,3 +168,13 @@ it("redacts form fields and their repeated values while keeping ordinary fields"
   expect(form.get("quantity")).toBe("3");
   expect(form.get("note")).toBe("[secret removed]");
 });
+
+it("exports readable fenced bodies even when recorded text contains a Markdown fence", () => {
+  const data = fixture();
+  data.attempts[0].responseBody = "```\nrecorded line\n```";
+  const output = report(importIncident(JSON.stringify(data)));
+  expect(output).toContain("Request:\n```json\n{\n");
+  expect(output).toContain(
+    "Response:\n````text\n```\nrecorded line\n```\n````",
+  );
+});
