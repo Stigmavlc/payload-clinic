@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @theme {
   --font-sans: "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, monospace;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+    "Liberation Mono", "DejaVu Sans Mono", monospace;
 }
 :root {
   font-family: var(--font-sans);
