@@ -770,6 +770,10 @@ test("masking an undefined value preserves the invalid JSON observation after re
   expect(output).toContain('```text\n{"amount":10,"token":[removed]}');
   expect(output).toContain("Observed: Request body is not valid JSON");
   expect(output).not.toContain("undefined");
+  await page.screenshot({
+    path: test.info().outputPath("invalid-json-evidence.png"),
+    fullPage: true,
+  });
 });
 
 test("body check labels retain the original form and unsupported field scopes across reloads", async ({
@@ -823,6 +827,11 @@ test("body check labels retain the original form and unsupported field scopes ac
     await expect(
       page.getByLabel("Redacted request body", { exact: true }),
     ).toHaveText("[email removed]=delivered&token=[removed]");
+    if (cycle === 2)
+      await page.screenshot({
+        path: test.info().outputPath("form-check-scope.png"),
+        fullPage: true,
+      });
     for (let index = 0; index < plainBodies.length; index++) {
       await page
         .getByRole("button", { name: new RegExp(`scope-${index + 2}`) })
@@ -836,6 +845,11 @@ test("body check labels retain the original form and unsupported field scopes ac
       await expect(
         page.getByLabel("Redacted request body", { exact: true }),
       ).toHaveText(plainBodies[index]);
+      if (cycle === 2)
+        await page.screenshot({
+          path: test.info().outputPath(`text-check-scope-${index + 1}.png`),
+          fullPage: true,
+        });
     }
     expect(
       await page.evaluate(() =>
