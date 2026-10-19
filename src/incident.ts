@@ -134,7 +134,12 @@ export function importIncident(
       return value.forEach((v, i) => collect(v, `${path}[${i}]`, depth + 1));
     if (isRecord(value))
       for (const [key, v] of Object.entries(value)) {
-        if (sensitive.test(key) && typeof v === "string" && v.length > 2)
+        if (
+          sensitive.test(key) &&
+          typeof v === "string" &&
+          v.length >= 12 &&
+          /[0-9A-Z_+/=.-]/.test(v)
+        )
           knownSecrets.add(v);
         collect(v, `${path}.${key}`, depth + 1);
       }
@@ -149,7 +154,7 @@ export function importIncident(
           throw e;
       }
     }
-  const scrubText = (value: string, path: string): string => {
+  const scrubText = (value: string, path: string, repeat = true): string => {
     let clean = value.replace(email, () => {
       redactions.add(`${path}: email address`);
       return "[email removed]";
@@ -161,10 +166,16 @@ export function importIncident(
     for (const secret of [...knownSecrets].sort(
       (a, b) => b.length - a.length,
     )) {
-      if (clean.includes(secret)) {
-        clean = clean.split(secret).join("[secret removed]");
+      if (!repeat) continue;
+      const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const match = new RegExp(
+        `(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`,
+        "g",
+      );
+      clean = clean.replace(match, () => {
         redactions.add(`${path}: repeated secret`);
-      }
+        return "[secret removed]";
+      });
     }
     return clean;
   };
@@ -176,12 +187,14 @@ export function importIncident(
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => {
           if (sensitive.test(k)) {
-            redactions.add(`${path}.${scrubText(k, path)}: sensitive field`);
-            return [scrubText(k, path), "[removed]"];
+            redactions.add(
+              `${path}.${scrubText(k, path, false)}: sensitive field`,
+            );
+            return [scrubText(k, path, false), "[removed]"];
           }
           return [
-            scrubText(k, path),
-            scrub(v, `${path}.${scrubText(k, "field name")}`),
+            scrubText(k, path, false),
+            scrub(v, `${path}.${scrubText(k, "field name", false)}`),
           ];
         }),
       );

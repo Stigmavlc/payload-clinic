@@ -109,3 +109,23 @@ it("redacts private object keys throughout nested diagnostic paths", () => {
   expect(JSON.stringify(incident)).not.toContain("person@example.test");
   expect(report(incident)).not.toContain("hidden-value");
 });
+
+it("preserves ordinary values, longer words and field names during repeated-secret redaction", () => {
+  const data = fixture();
+  data.attempts[0].requestBody = JSON.stringify({
+    token_status: "active",
+    token: "private-value",
+    state: "inactive",
+    path: "/hooks/active-orders",
+    "private-value": "diagnostic label",
+    detail: "private-value-suffix",
+    exact: "private-value",
+  });
+  const value = importIncident(JSON.stringify(data));
+  const body = JSON.parse(value.attempts[1].requestBody);
+  expect(body.state).toBe("inactive");
+  expect(body.path).toBe("/hooks/active-orders");
+  expect(body["private-value"]).toBe("diagnostic label");
+  expect(body.detail).toBe("private-value-suffix");
+  expect(body.exact).toBe("[secret removed]");
+});
