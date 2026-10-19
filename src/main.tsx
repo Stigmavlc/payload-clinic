@@ -19,14 +19,17 @@ import { sampleIncident, sampleText, secondSampleText } from "./samples";
 import { SignaturePanel } from "./SignaturePanel";
 import "./style.css";
 const STORAGE = "payload-clinic.incident.v1";
-function initial(): Incident {
+function initial(): { incident: Incident; preserveSaved: boolean } {
   try {
     const value = localStorage.getItem(STORAGE);
-    return value
-      ? importIncident(value, { restoreRedactions: true })
-      : sampleIncident();
+    return {
+      incident: value
+        ? importIncident(value, { restoreRedactions: true })
+        : sampleIncident(),
+      preserveSaved: false,
+    };
   } catch {
-    return sampleIncident();
+    return { incident: sampleIncident(), preserveSaved: true };
   }
 }
 function download(name: string, content: string, type: string) {
@@ -38,7 +41,9 @@ function download(name: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 function App() {
-  const [incident, setIncident] = useState(initial);
+  const [opening] = useState(initial);
+  const [incident, setIncident] = useState(opening.incident);
+  const [preserveSaved, setPreserveSaved] = useState(opening.preserveSaved);
   const [selected, setSelected] = useState(0);
   const [tab, setTab] = useState<"evidence" | "compare" | "signature">(
     "evidence",
@@ -91,6 +96,12 @@ function App() {
     };
   }, [importing]);
   useEffect(() => {
+    if (preserveSaved) {
+      setStorageNote(
+        "The saved incident could not be reopened and has been kept unchanged. This view shows an example. Importing a new incident will replace the saved copy.",
+      );
+      return;
+    }
     try {
       localStorage.setItem(STORAGE, JSON.stringify(incident));
       setStorageNote("Redacted incident saved on this browser.");
@@ -99,7 +110,7 @@ function App() {
         "Browser storage is unavailable. Export the redacted report before closing.",
       );
     }
-  }, [incident]);
+  }, [incident, preserveSaved]);
   const current =
     incident.attempts[Math.min(selected, incident.attempts.length - 1)];
   const other =
@@ -108,6 +119,7 @@ function App() {
   function load(text: string) {
     try {
       const safe = importIncident(text);
+      setPreserveSaved(false);
       setIncident(safe);
       setSelected(0);
       setCompare(Math.min(1, safe.attempts.length - 1));
@@ -331,7 +343,9 @@ function App() {
                   </div>
                   <div className="reading">
                     <span className="eyebrow">HTTP status</span>
-                    <strong className="mono">{current.status ?? "No response"}</strong>
+                    <strong className="mono">
+                      {current.status ?? "No response"}
+                    </strong>
                   </div>
                   <div className="reading">
                     <span className="eyebrow">Response duration</span>

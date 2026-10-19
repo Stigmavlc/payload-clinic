@@ -229,3 +229,50 @@ test("capture the three documented views at desktop width", async ({
     fullPage: true,
   });
 });
+
+test("a redacted title survives reload and an unreadable saved copy is preserved", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const title = "a@b.co c@d.co " + "x".repeat(166);
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  await page
+    .getByLabel("Or paste an incident")
+    .fill(
+      JSON.stringify({
+        title,
+        senderTimeoutMs: 1000,
+        attempts: [
+          {
+            id: "first",
+            eventId: "event",
+            receivedAt: "2026-10-19T10:00:00Z",
+            status: 200,
+            durationMs: 20,
+            headers: {},
+            requestBody: "{}",
+            responseBody: "",
+          },
+        ],
+      }),
+    );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  const heading = await page.locator(".main-heading h2").innerText();
+  expect(heading.length).toBeGreaterThan(180);
+  await page.reload();
+  await expect(page.locator(".main-heading h2")).toHaveText(heading);
+  await page.evaluate(() =>
+    localStorage.setItem("payload-clinic.incident.v1", "{unreadable"),
+  );
+  await page.reload();
+  await expect(
+    page.getByText(/saved incident could not be reopened/),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBe("{unreadable");
+});

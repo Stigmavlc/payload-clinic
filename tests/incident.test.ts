@@ -287,3 +287,36 @@ it("keeps the original redaction log order for multiple attempts and sensitive f
   expect(reopenedAgain).toEqual(reopened);
   expect(reopened.attempts).toEqual(incident.attempts);
 });
+
+it("reopens an expanded saved title and redaction log beyond the raw import limit", () => {
+  const data = fixture();
+  data.title = "a@b.co c@d.co " + "x".repeat(166);
+  data.attempts[0].requestBody = JSON.stringify(
+    Array.from({ length: 7600 }, (_, i) => ({ email: `p${i}@x.co`, n: i })),
+  );
+  const incident = importIncident(JSON.stringify(data));
+  expect(incident.title.length).toBeGreaterThan(180);
+  // Saved logs and replacement labels can grow beyond the incoming file size.
+  const expanded = {
+    ...incident,
+    redactions: [
+      ...incident.redactions,
+      ...Array.from(
+        { length: 10000 },
+        (_, i) => `field-${i}: ` + "r".repeat(80),
+      ),
+    ],
+  };
+  expect(JSON.stringify(expanded).length).toBeGreaterThan(1000000);
+  expect(
+    importIncident(JSON.stringify(expanded), { restoreRedactions: true }),
+  ).toEqual(expanded);
+});
+it("rejects identifiers that collide after redaction before they can be saved", () => {
+  const data = fixture();
+  data.attempts[0].id = "a@example.test";
+  data.attempts[1].id = "b@example.test";
+  expect(() => importIncident(JSON.stringify(data))).toThrow(
+    "identical after redaction",
+  );
+});
