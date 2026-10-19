@@ -14,32 +14,32 @@ Payload Clinic helps small software support teams explain failed webhook deliver
 4. Export a redacted Markdown report. It contains the records, observations, suggested checks and redaction log, with no signature-checker inputs.
 5. In **Signature check**, load a signed synthetic sample and verify it. Reformat the JSON and verify again to see why the original bytes matter. The expired sample demonstrates the separate timestamp check.
 
-The second incident, **Changed request contract**, contains malformed JSON followed by a 422 response. It helps distinguish a syntax observation from a server response about a field's type. The tool does not invent an endpoint contract or claim to know the root cause.
+The second incident, **Changed request contract**, contains malformed JSON followed by a 422 response about a field type. Use it to practise checking the payload against the endpoint contract and deciding which receiving-side evidence to request next.
 
 ## What it does
 
 - Validates incident structure before import, with clear errors for malformed input.
 - Orders receiving-side records by timestamp and shows gaps between attempts.
 - Separates HTTP status observations from investigation checks, including slow responses and repeated event identifiers.
-- Compares two redacted request bodies without treating equality after redaction as proof of identical original bytes.
+- Compares event identifiers, timing, HTTP status and request bodies after redaction.
 - Redacts recognised secret fields, credential patterns and email addresses before browser storage or report export.
 - Verifies Stripe-style HMAC SHA-256 signatures using the original UTF-8 body and timestamp, with a five-minute tolerance.
-- Works by keyboard, including a focus-contained import dialog, Escape to close and restored focus.
-- Adapts to a narrow screen without page-wide horizontal scrolling.
 
-The examples are fictional. This is a receiving-side evidence tool: it does not contact an endpoint, replay an event, predict a sender's retry schedule or replace server logs.
+The examples are fictional. Observations describe the supplied records; investigation checks identify the evidence still needed from the sender or receiver.
 
 ## Data handling
 
-Use synthetic or already redacted records. The application makes no network requests with incident or signing inputs. Its static host can still receive normal requests for the page and assets. Following the source or reference links opens external sites.
+Use synthetic or already redacted records and inspect the result before sharing it. Input stays in the browser. The static host receives normal page and asset requests; incident and signature inputs remain local.
 
-The importer recognises sensitive field names such as `Authorization`, `Cookie`, `Stripe-Signature`, token, secret, password, API key and email. It also removes email patterns, bearer credentials, JWT-shaped strings, Stripe `sk_`, `pk_`, `rk_` live/test keys and `whsec_` signing secrets. JSON fields and form-encoded `key=value&key=value` bodies are checked for sensitive names. Repeated credentials include Bearer/Basic values and Stripe v1 digests extracted from headers. Repeated matching requires at least 12 characters with a number, uppercase letter or credential punctuation, and respects token boundaries. Field names receive email and credential-pattern checks only. Recognised values are removed from titles, identifiers, headers and bodies. Unknown incident properties are discarded.
+Sensitive JSON fields and headers are removed when their names contain authorization, cookie, signature, token, secret, password, API key or email. The same name checks apply to form-encoded bodies in `key=value&key=value` format. Text checks cover email addresses, Bearer and Basic credentials, JWT-shaped strings, Stripe `sk_`, `pk_` and `rk_` live/test keys, and `whsec_` signing secrets. Bare Bearer/Basic credentials and Stripe v1 digests are also collected from headers for repeated-value checks.
 
-Redaction is a practical filter, not an anonymisation guarantee. It cannot recognise every personal name, address, encoded value, arbitrary credential or private business detail. Inspect the redacted content and its log before sharing. Invalid JSON bodies remain useful evidence and are scrubbed as text.
+Repeated matching applies to values of at least 12 characters containing a number, uppercase letter or credential punctuation. It respects token boundaries and leaves ordinary field names intact. Email and credential patterns are still removed from field names. Invalid JSON bodies are retained as redacted text; recognised form bodies are encoded again after redaction. Unknown incident properties are discarded.
 
-Only the redacted incident is stored in `localStorage`, under `payload-clinic.incident.v1`. Browser storage is unencrypted and available to other scripts on the same origin. **Remove saved copy** deletes the stored incident; the current view remains in memory until the page closes or a different incident is loaded. Importing or choosing an example saves that new redacted incident again. Clearing site storage also removes the saved copy.
+These checks cover particular patterns. Names, addresses, encoded values, unfamiliar credential formats and private business details can remain. The redaction log records recognised removals and is preserved when reopening a saved incident.
 
-The signature checker is separate. Its raw body, signature header and secret stay in component memory, are never included in storage or exports, and clear when leaving that view or pressing **Clear sensitive inputs**. Use its synthetic examples rather than live credentials. A matching signature establishes that the supplied bytes and key match, not that the event was authorised or processed successfully.
+The redacted incident and its log are saved in `localStorage` under `payload-clinic.incident.v1`. This storage is unencrypted and readable by scripts on the same origin. **Remove saved copy** deletes it, while the current view stays in memory. Importing a record or choosing an example saves the new incident. Clearing site storage also removes the saved copy.
+
+Signing inputs use separate, temporary component memory. Leaving **Signature check** or pressing **Clear sensitive inputs** clears them. Storage and reports contain incident evidence only. A digest match confirms the supplied key and bytes; the timestamp must also pass the five-minute check. Event authenticity and successful processing require evidence from the production systems.
 
 ## Incident format
 
@@ -64,7 +64,7 @@ Import a JSON file or paste a JSON object. The whole file is limited to 1 MB, wi
 }
 ```
 
-`receivedAt` needs an ISO timestamp with a time zone. `status` is an integer from 100 to 599, or `null` if no HTTP response was recorded. Durations cannot be negative. `senderTimeoutMs` must be a known positive limit from the sender, not an inferred default. Bodies are strings so malformed JSON can be retained as evidence.
+`receivedAt` needs an ISO timestamp with a time zone. `status` is an integer from 100 to 599, or `null` if no HTTP response was recorded. Durations cannot be negative. Supply the sender’s documented positive time limit in `senderTimeoutMs`. Bodies are strings so malformed JSON can be retained as evidence.
 
 ## Run locally
 
@@ -90,7 +90,7 @@ For Linux environments without browser system libraries, use `npx playwright ins
 
 The test suite covers chronological ordering, status interpretation, sender time limits, invalid JSON, malformed import structures, duplicate identifiers, redaction across bodies and nested object keys, repeated secrets and report content. Cryptographic tests include RFC 4231 test case 1 and the supplied Stripe signing format, with changed bytes, missing or malformed signatures and expired timestamps.
 
-Browser tests exercise a complete investigation and export, invalid and valid imports with redacted persistence across reload, transient signature inputs, a 390 px layout, and keyboard focus containment and restoration. CI installs dependencies, runs the unit tests, builds the app and runs Chromium tests. Publishing depends on that verification job succeeding for the same commit.
+Browser tests exercise a complete investigation and export, invalid and valid imports, redacted persistence and the full redaction log across reload, transient signing inputs, an expired timestamp, a 390 px layout, and keyboard focus containment and restoration. CI installs dependencies, runs the unit tests, builds the app and runs Chromium tests. Publishing depends on that verification job succeeding for the same commit.
 
 Screenshots show the application running with synthetic records. They are saved in `docs/screenshots/`.
 
@@ -105,7 +105,7 @@ React and TypeScript provide a small static application. Vite builds it; Tailwin
 - `tests/`: unit and browser verification.
 - `.github/workflows/ci.yml`: verification and GitHub Pages publication.
 
-The app deliberately does not accept arbitrary executable templates, fetch remote payloads, issue webhook requests or store signing secrets. It has no backend, account or telemetry SDK.
+The application is static and can be served from GitHub Pages. All investigation and cryptographic calculations run in the browser.
 
 ## References
 
