@@ -3,6 +3,13 @@ test("sample timeline, comparison and report contain useful evidence", async ({
   page,
 }) => {
   await page.goto("./");
+  const iconUrl = await page
+    .locator('link[rel="icon"]')
+    .evaluate((node: HTMLLinkElement) => node.href);
+  expect(new URL(iconUrl).pathname).toBe("/payload-clinic/favicon.svg");
+  const icon = await page.request.get(iconUrl);
+  expect(icon.headers()["content-type"]).toContain("image/svg+xml");
+  expect(await icon.text()).toContain("<svg");
   await page.getByRole("button", { name: /delivery-7b/ }).click();
   await expect(
     page.getByText("Response reached the sender’s time limit", { exact: true }),

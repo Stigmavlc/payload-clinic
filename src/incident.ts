@@ -1,7 +1,7 @@
 import * as jsonc from "jsonc-parser";
+import { createScanner, getNodePath, parseTree, type Node } from "jsonc-parser";
 const tokenKinds = (jsonc as unknown as { SyntaxKind: Record<string, number> })
   .SyntaxKind;
-import { createScanner, getNodePath, parseTree, type Node } from "jsonc-parser";
 export type Attempt = {
   id: string;
   eventId: string;
