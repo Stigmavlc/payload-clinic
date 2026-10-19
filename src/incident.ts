@@ -13,6 +13,7 @@ export type Incident = {
   senderTimeoutMs: number;
   attempts: Attempt[];
   redactions: string[];
+  example?: "booking" | "inventory";
 };
 export type Finding = {
   kind: "observed" | "check";
@@ -448,6 +449,10 @@ export function importIncident(
     senderTimeoutMs: input.senderTimeoutMs,
     attempts,
     redactions: [...new Set([...restoredLog, ...redactions])],
+    ...(options.restoreRedactions &&
+    (input.example === "booking" || input.example === "inventory")
+      ? { example: input.example }
+      : {}),
   };
 }
 

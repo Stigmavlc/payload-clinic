@@ -117,11 +117,11 @@ function App() {
   const other =
     incident.attempts[Math.min(compare, incident.attempts.length - 1)];
   const differences = compareAttempts(current, other);
-  function load(text: string) {
+  function load(text: string, example?: "booking" | "inventory") {
     try {
       const safe = importIncident(text);
       setPreserveSaved(false);
-      setIncident(safe);
+      setIncident({ ...safe, ...(example ? { example } : {}) });
       setSelected(0);
       setCompare(Math.min(1, safe.attempts.length - 1));
       setError("");
@@ -172,17 +172,11 @@ function App() {
             </label>
             <select
               id="samples"
-              value={
-                incident.title === sampleIncident().title
-                  ? "booking"
-                  : incident.title ===
-                      "Inventory event: request contract changed"
-                    ? "inventory"
-                    : "custom"
-              }
+              value={incident.example ?? "custom"}
               onChange={(e) =>
                 load(
                   e.target.value === "booking" ? sampleText : secondSampleText,
+                  e.target.value as "booking" | "inventory",
                 )
               }
             >
@@ -192,9 +186,11 @@ function App() {
               <option value="booking">Slow response and retries</option>
               <option value="inventory">Changed request contract</option>
             </select>
-            <span className="help">
-              Fictional delivery records, safe to explore.
-            </span>
+            {incident.example && (
+              <span className="help">
+                Fictional delivery records, safe to explore.
+              </span>
+            )}
           </div>
           <div className="timeline-label">
             <span className="eyebrow">Received attempts</span>
@@ -388,7 +384,7 @@ function App() {
                   <section>
                     <div className="section-title">
                       <h3>Response body</h3>
-                      <span className="eyebrow">Recorded</span>
+                      <span className="eyebrow">Redacted</span>
                     </div>
                     <pre tabIndex={0} aria-label="Redacted response body">
                       {current.responseBody || "(empty response body)"}

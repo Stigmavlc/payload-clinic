@@ -542,9 +542,9 @@ textarea {
   }
   .main-heading {
     align-items: flex-start;
+    flex-wrap: wrap;
   }
   .main-heading .secondary {
-    font-size: 0;
     min-width: 38px;
   }
   .main-heading .secondary svg {

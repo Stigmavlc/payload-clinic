@@ -117,4 +117,7 @@ export const secondSampleText = JSON.stringify(
   null,
   2,
 );
-export const sampleIncident = () => importIncident(sampleText);
+export const sampleIncident = () => ({
+  ...importIncident(sampleText),
+  example: "booking" as const,
+});

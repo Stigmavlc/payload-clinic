@@ -359,3 +359,66 @@ for (const width of [1440, 390]) {
     });
   });
 }
+
+test("imported records keep their identity and export has a visible mobile label", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./");
+  await expect(
+    page.getByText("Fictional delivery records, safe to explore.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  await page
+    .getByLabel("Or paste an incident")
+    .fill(
+      JSON.stringify({
+        title: "Slow response and retries",
+        example: "booking",
+        senderTimeoutMs: 1000,
+        attempts: [
+          {
+            id: "private-input",
+            eventId: "event",
+            receivedAt: "2026-10-19T10:00:00Z",
+            status: 200,
+            durationMs: 20,
+            headers: {},
+            requestBody: "{}",
+            responseBody: "{}",
+          },
+        ],
+      }),
+    );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  await expect(
+    page.getByText("Fictional delivery records, safe to explore.", {
+      exact: true,
+    }),
+  ).not.toBeVisible();
+  await expect(page.getByLabel("Synthetic examples")).toHaveValue("custom");
+  await page.reload();
+  await expect(page.getByLabel("Synthetic examples")).toHaveValue("custom");
+  const exportButton = page.getByRole("button", {
+    name: "Export report",
+    exact: true,
+  });
+  await expect(exportButton).toBeVisible();
+  expect(
+    await exportButton.evaluate((e) =>
+      parseFloat(getComputedStyle(e).fontSize),
+    ),
+  ).toBeGreaterThan(10);
+  expect(
+    await page.locator(".payload-grid .eyebrow").allTextContents(),
+  ).toEqual(["Redacted", "Redacted"]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
