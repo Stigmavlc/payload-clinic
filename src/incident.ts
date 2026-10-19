@@ -412,6 +412,6 @@ export function report(incident: Incident): string {
     "## Redactions",
     ...incident.redactions.map((x) => `- ${x}`),
     "",
-    "Signature inputs and secrets are never included in this report.",
+    "Signature checker inputs are excluded. Recognised patterns were removed; review the report content before sharing.",
   ].join("\n");
 }

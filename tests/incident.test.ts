@@ -208,3 +208,14 @@ it.each([
     );
   },
 );
+
+it("describes the limits of report redaction honestly", () => {
+  const data = fixture();
+  data.attempts[0].responseBody = "opaque-example-credential-48152";
+  const output = report(importIncident(JSON.stringify(data)));
+  expect(output).toContain("opaque-example-credential-48152");
+  expect(output).toContain(
+    "Recognised patterns were removed; review the report content before sharing.",
+  );
+  expect(output).not.toContain("secrets are never included");
+});
