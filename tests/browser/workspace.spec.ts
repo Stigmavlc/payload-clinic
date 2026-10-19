@@ -411,7 +411,7 @@ test("a redacted title survives reload and an unreadable saved copy is preserved
   ).toBeNull();
   await page.getByLabel("Synthetic examples").selectOption("booking");
   await expect(
-    page.getByText("Redacted incident saved on this browser.", { exact: true }),
+    page.getByText("Incident saved on this browser.", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText(/saved incident could not be reopened/),
@@ -794,6 +794,12 @@ test("masking an undefined value preserves the invalid JSON observation after re
       ))!,
     ).attempts[0].requestBody;
     expect(body).toBe('{"amount":10,"token":[removed]}');
+    await expect(
+      page.getByLabel("Request body, review content", { exact: true }),
+    ).toHaveText(body);
+    await expect(
+      page.getByLabel("Redacted request body", { exact: true }),
+    ).toHaveCount(0);
     expect(() => JSON.parse(body)).toThrow();
     expect(
       await page.evaluate(() =>

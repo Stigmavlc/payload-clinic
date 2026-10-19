@@ -25,7 +25,7 @@ import { SignaturePanel } from "./SignaturePanel";
 import "./style.css";
 const STORAGE = "payload-clinic.incident.v1";
 const bodyBadge = (scope?: BodyCheck): string =>
-  ["text", "unknown"].includes(scope ?? "unknown")
+  ["text", "json-like", "unknown"].includes(scope ?? "unknown")
     ? "Review content"
     : "Redacted";
 const bodyPanelName = (
@@ -128,7 +128,7 @@ function App() {
     if (removedView.current === incident) return;
     try {
       localStorage.setItem(STORAGE, JSON.stringify(incident));
-      setStorageNote("Redacted incident saved on this browser.");
+      setStorageNote("Incident saved on this browser.");
     } catch {
       setStorageNote(
         "Browser storage is unavailable. Export the redacted report before closing.",
@@ -156,7 +156,7 @@ function App() {
       setImporting(false);
       setTab("evidence");
       setNotice(
-        "Incident imported and redacted. Review the removed fields before sharing.",
+        "Incident imported. Review the body check scopes and removed fields before sharing.",
       );
     } catch (e) {
       setError(
@@ -324,7 +324,7 @@ function App() {
                   "text/markdown",
                 );
                 setNotice(
-                  "Redacted report exported. Signature inputs were excluded.",
+                  "Incident report exported. Signature inputs were excluded.",
                 );
               }}
             >
