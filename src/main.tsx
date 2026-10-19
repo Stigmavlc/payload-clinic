@@ -1,0 +1,581 @@
+import React, { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  ArrowDownIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  FileTextIcon,
+  LockClosedIcon,
+  UploadIcon,
+} from "@radix-ui/react-icons";
+import {
+  compareAttempts,
+  findings,
+  importIncident,
+  report,
+  type Incident,
+} from "./incident";
+import { sampleIncident, sampleText, secondSampleText } from "./samples";
+import { SignaturePanel } from "./SignaturePanel";
+import "./style.css";
+const STORAGE = "payload-clinic.incident.v1";
+function initial(): Incident {
+  try {
+    const value = localStorage.getItem(STORAGE);
+    return value ? importIncident(value) : sampleIncident();
+  } catch {
+    return sampleIncident();
+  }
+}
+function download(name: string, content: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+function App() {
+  const [incident, setIncident] = useState(initial);
+  const [selected, setSelected] = useState(0);
+  const [tab, setTab] = useState<"evidence" | "compare" | "signature">(
+    "evidence",
+  );
+  const [compare, setCompare] = useState(1);
+  const [importing, setImporting] = useState(false);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [storageNote, setStorageNote] = useState("");
+  const [notice, setNotice] = useState("");
+  const modalRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!importing) return;
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialog = modalRef.current;
+    const controls = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href]",
+        ) ?? [],
+      );
+    controls()[0]?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setImporting(false);
+        setInput("");
+        setError("");
+      }
+      if (event.key === "Tab") {
+        const fields = controls(),
+          first = fields[0],
+          last = fields[fields.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", keyboard);
+    return () => {
+      document.removeEventListener("keydown", keyboard);
+      previous?.focus();
+    };
+  }, [importing]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE, JSON.stringify(incident));
+      setStorageNote("Redacted incident saved on this browser.");
+    } catch {
+      setStorageNote(
+        "Browser storage is unavailable. Export the redacted report before closing.",
+      );
+    }
+  }, [incident]);
+  const current =
+    incident.attempts[Math.min(selected, incident.attempts.length - 1)];
+  const other =
+    incident.attempts[Math.min(compare, incident.attempts.length - 1)];
+  const differences = compareAttempts(current, other);
+  function load(text: string) {
+    try {
+      const safe = importIncident(text);
+      setIncident(safe);
+      setSelected(0);
+      setCompare(Math.min(1, safe.attempts.length - 1));
+      setError("");
+      setInput("");
+      setImporting(false);
+      setTab("evidence");
+      setNotice(
+        "Incident imported and redacted. Review the removed fields before sharing.",
+      );
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not import this incident.",
+      );
+    }
+  }
+  return (
+    <div className="shell">
+      <header className="topbar">
+        <a href="#main" className="skip-link">
+          Skip to investigation
+        </a>
+        <div className="brand">
+          <span className="brand-mark">pc</span>
+          <span>Payload Clinic</span>
+        </div>
+        <div className="local-indicator">
+          <LockClosedIcon />
+          <span>Local workspace</span>
+        </div>
+        <a
+          className="repo-link"
+          href="https://github.com/Stigmavlc/payload-clinic"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Source <ArrowRightIcon />
+        </a>
+      </header>
+      <div className="workspace">
+        <aside className="sidebar" aria-label="Delivery timeline">
+          <div className="sidebar-heading">
+            <span className="eyebrow">Investigation 01</span>
+            <h1>Follow the delivery.</h1>
+            <p className="muted">
+              Evidence first. A cause only when the records support it.
+            </p>
+          </div>
+          <div className="sample-control">
+            <label htmlFor="samples" className="eyebrow">
+              Synthetic examples
+            </label>
+            <select
+              id="samples"
+              value={
+                incident.title === sampleIncident().title
+                  ? "booking"
+                  : incident.title ===
+                      "Inventory event: request contract changed"
+                    ? "inventory"
+                    : "custom"
+              }
+              onChange={(e) =>
+                load(
+                  e.target.value === "booking" ? sampleText : secondSampleText,
+                )
+              }
+            >
+              <option value="custom" disabled>
+                Imported incident
+              </option>
+              <option value="booking">Slow response and retries</option>
+              <option value="inventory">Changed request contract</option>
+            </select>
+            <span className="help">
+              Fictional delivery records, safe to explore.
+            </span>
+          </div>
+          <div className="timeline-label">
+            <span className="eyebrow">Received attempts</span>
+            <span className="mono">
+              {incident.attempts.length.toString().padStart(2, "0")}
+            </span>
+          </div>
+          <ol className="timeline">
+            {incident.attempts.map((a, i) => (
+              <li key={a.id}>
+                <button
+                  className={`attempt ${i === selected ? "selected" : ""}`}
+                  aria-pressed={i === selected}
+                  onClick={() => {
+                    setSelected(i);
+                    if (tab === "signature") setTab("evidence");
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="mono text-xs">
+                      {new Date(a.receivedAt).toISOString().slice(11, 19)} UTC
+                    </span>
+                    <span
+                      className={`status status-${a.status === null ? "none" : Math.floor(a.status / 100)}`}
+                    >
+                      {a.status ?? "No response"}
+                    </span>
+                  </div>
+                  <strong>{a.id}</strong>
+                  <div className="flex justify-between text-xs muted">
+                    <span>{a.eventId}</span>
+                    <span className="mono">
+                      {a.durationMs.toLocaleString()} ms
+                    </span>
+                  </div>
+                  {i > 0 && (
+                    <span className="gap-note">
+                      {(
+                        (Date.parse(a.receivedAt) -
+                          Date.parse(incident.attempts[i - 1].receivedAt)) /
+                        1000
+                      ).toLocaleString()}{" "}
+                      seconds after previous attempt
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <button
+            className="secondary w-full justify-center"
+            onClick={() => {
+              setImporting(true);
+              setError("");
+            }}
+          >
+            <UploadIcon /> Import incident
+          </button>
+          <div className="sidebar-foot">
+            <p className="help">{storageNote}</p>
+            <button
+              className="quiet mt-2 text-left"
+              onClick={() => {
+                try {
+                  localStorage.removeItem(STORAGE);
+                  setStorageNote(
+                    "Saved copy removed. This view remains in memory until another incident is loaded.",
+                  );
+                } catch {
+                  setStorageNote("The browser did not allow storage access.");
+                }
+              }}
+            >
+              Remove saved copy
+            </button>
+          </div>
+        </aside>
+        <main id="main" className="main">
+          <div className="main-heading">
+            <div>
+              <div className="eyebrow flex items-center gap-2">
+                <span className="sample-dot" /> Delivery investigation
+              </div>
+              <h2>{incident.title}</h2>
+              <p className="muted">
+                Sender time limit{" "}
+                <span className="mono">
+                  {incident.senderTimeoutMs.toLocaleString()} ms
+                </span>
+                <span className="separator">/</span> Receiving-side records
+              </p>
+            </div>
+            <button
+              className="secondary shrink-0"
+              onClick={() => {
+                download(
+                  "payload-clinic-report.md",
+                  report(incident),
+                  "text/markdown",
+                );
+                setNotice(
+                  "Redacted report exported. Signature inputs were excluded.",
+                );
+              }}
+            >
+              <ArrowDownIcon /> Export report
+            </button>
+          </div>
+          <div className="tabs" role="tablist" aria-label="Investigation views">
+            {(["evidence", "compare", "signature"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                aria-controls={`panel-${t}`}
+                id={`tab-${t}`}
+                onClick={() => setTab(t)}
+              >
+                {t === "evidence"
+                  ? "Delivery evidence"
+                  : t === "compare"
+                    ? "Compare attempts"
+                    : "Signature check"}
+              </button>
+            ))}
+          </div>
+          <div className="toast-slot" aria-live="polite">
+            {notice && (
+              <p className="help flex items-center gap-2">
+                <CheckIcon />
+                {notice}
+              </p>
+            )}
+          </div>
+          <div
+            role="tabpanel"
+            id={`panel-${tab}`}
+            aria-labelledby={`tab-${tab}`}
+          >
+            {tab === "evidence" && (
+              <>
+                <section className="evidence-overview">
+                  <div>
+                    <span className="eyebrow">Selected delivery</span>
+                    <h3 className="mt-2">{current.id}</h3>
+                    <p className="mono muted mt-1 text-sm">
+                      {current.receivedAt}
+                    </p>
+                  </div>
+                  <div className="reading">
+                    <span className="eyebrow">HTTP status</span>
+                    <strong className="mono">{current.status ?? "—"}</strong>
+                  </div>
+                  <div className="reading">
+                    <span className="eyebrow">Response duration</span>
+                    <strong className="mono">
+                      {current.durationMs.toLocaleString()}
+                      <small> ms</small>
+                    </strong>
+                  </div>
+                </section>
+                <section aria-labelledby="findings-title" className="findings">
+                  <div className="section-title">
+                    <h3 id="findings-title">What the record says</h3>
+                    <span className="help">No inferred root cause</span>
+                  </div>
+                  {findings(incident, current).map((f, i) => (
+                    <div className="finding" key={i}>
+                      <span className={`finding-label ${f.kind}`}>
+                        {f.kind === "observed" ? "Observed" : "Next check"}
+                      </span>
+                      <div>
+                        <h4>{f.title}</h4>
+                        <p className="muted mt-1">{f.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+                <div className="payload-grid">
+                  <section>
+                    <div className="section-title">
+                      <h3>Request body</h3>
+                      <span className="eyebrow">Redacted</span>
+                    </div>
+                    <pre tabIndex={0} aria-label="Redacted request body">
+                      {current.requestBody}
+                    </pre>
+                  </section>
+                  <section>
+                    <div className="section-title">
+                      <h3>Response body</h3>
+                      <span className="eyebrow">Recorded</span>
+                    </div>
+                    <pre tabIndex={0} aria-label="Redacted response body">
+                      {current.responseBody || "(empty response body)"}
+                    </pre>
+                  </section>
+                </div>
+                <details className="details">
+                  <summary>
+                    Headers and redaction log{" "}
+                    <span className="mono">{incident.redactions.length}</span>
+                  </summary>
+                  <h4 className="mt-5 mb-2">Selected headers</h4>
+                  <pre>{JSON.stringify(current.headers, null, 2)}</pre>
+                  <h4 className="mt-5 mb-2">Removed before saving</h4>
+                  {incident.redactions.length ? (
+                    <ul className="redaction-list">
+                      {incident.redactions.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="help">
+                      No recognised secret fields or email patterns were found.
+                      This is not a guarantee that every kind of personal
+                      information was removed.
+                    </p>
+                  )}
+                  <p className="help mt-4">
+                    Automatic redaction cannot recognise arbitrary private data,
+                    encoded values or every credential format. Review the
+                    redacted content before exporting. Use synthetic or already
+                    redacted records.
+                  </p>
+                </details>
+              </>
+            )}
+            {tab === "compare" && (
+              <section className="space-y-6">
+                <div className="section-title">
+                  <div>
+                    <h3>Compare two receiving-side records</h3>
+                    <p className="muted mt-1">
+                      Select the first attempt in the timeline, then choose a
+                      second.
+                    </p>
+                  </div>
+                </div>
+                <label className="field max-w-md">
+                  Second attempt
+                  <select
+                    value={compare}
+                    onChange={(e) => setCompare(Number(e.target.value))}
+                  >
+                    {incident.attempts.map((a, i) => (
+                      <option key={a.id} value={i}>
+                        {a.id} · {a.status ?? "no response"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <dl className="comparison-summary">
+                  <div>
+                    <dt>Recorded gap, second minus first</dt>
+                    <dd className="mono">{differences.gapMs / 1000} seconds</dd>
+                  </div>
+                  <div>
+                    <dt>Event identifier</dt>
+                    <dd>
+                      {differences.sameEvent
+                        ? "Same event identifier"
+                        : "Different event identifiers"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Redacted body</dt>
+                    <dd>
+                      {differences.sameBody
+                        ? "Identical after redaction"
+                        : "Different after redaction"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>HTTP status</dt>
+                    <dd className="mono">{differences.status}</dd>
+                  </div>
+                </dl>
+                <p className="notice">
+                  Equal redacted bodies do not prove equal original bytes. Use
+                  the original bytes in the separate signature checker to
+                  investigate a signing mismatch.
+                </p>
+                <div className="payload-grid">
+                  <section>
+                    <h4 className="mb-3">{current.id}</h4>
+                    <pre tabIndex={0}>{current.requestBody}</pre>
+                  </section>
+                  <section>
+                    <h4 className="mb-3">{other.id}</h4>
+                    <pre tabIndex={0}>{other.requestBody}</pre>
+                  </section>
+                </div>
+              </section>
+            )}
+            {tab === "signature" && <SignaturePanel />}
+          </div>
+          <footer className="page-foot">
+            <FileTextIcon />
+            <p>
+              Nothing is sent to a webhook endpoint. The report contains
+              observations and checks for a human investigator.
+            </p>
+          </footer>
+        </main>
+      </div>
+      {importing && (
+        <div className="modal-backdrop">
+          <section
+            ref={modalRef}
+            className="import-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-title"
+          >
+            <div className="section-title">
+              <h2 id="import-title">Import a delivery record</h2>
+              <button
+                className="quiet"
+                onClick={() => {
+                  setImporting(false);
+                  setInput("");
+                  setError("");
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <p className="muted mb-5">
+              Choose a JSON incident file or paste one below. The importer
+              validates the structure and redacts recognised secrets before
+              saving anything.
+            </p>
+            <label className="field">
+              JSON file
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 1_000_000) {
+                    setError("Choose a file smaller than 1 MB.");
+                    return;
+                  }
+                  load(await file.text());
+                }}
+              />
+            </label>
+            <label className="field mt-5">
+              Or paste an incident
+              <textarea
+                rows={9}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                spellCheck={false}
+              />
+            </label>
+            {error && (
+              <p role="alert" className="error mt-3">
+                {error}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2 mt-5">
+              <button className="primary" onClick={() => load(input)}>
+                Validate and import
+              </button>
+              <button
+                className="secondary"
+                onClick={() =>
+                  download(
+                    "synthetic-webhook-incident.json",
+                    sampleText,
+                    "application/json",
+                  )
+                }
+              >
+                Download sample format
+              </button>
+            </div>
+            <p className="help mt-5">
+              Keep live credentials out of this tool. The signature checker uses
+              separate session inputs. Importing does not send requests or
+              replay events.
+            </p>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
