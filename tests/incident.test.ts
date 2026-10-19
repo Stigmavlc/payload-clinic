@@ -625,25 +625,25 @@ it("preserves empty collections and boolean form and header values through reope
 it.each([
   [
     '{"id":"evt-safe","password":"synthetic-password-901",}',
-    '{"id":"evt-safe","password":"[removed]",}',
+    '{"id":"evt-safe","password":[removed],}',
     "password",
   ],
   [
     '{"profile":{"api_token":"synthetic-cut-902',
-    '{"profile":{"api_token":"[removed]"',
+    '{"profile":{"api_token":[removed]',
     "profile.api_token",
   ],
   [
     '{"token":"synthetic-token-903"}\n{"token":"synthetic-token-904"}',
-    '{"token":"[removed]"}\n{"token":"[removed]"}',
+    '{"token":[removed]}\n{"token":[removed]}',
     "[0].token|[1].token",
   ],
   [
     '{ // observed\n "secret":"synthetic-secret-905", "ok":true}',
-    '{ // observed\n "secret":"[removed]", "ok":true}',
+    '{ // observed\n "secret":[removed], "ok":true}',
     "secret",
   ],
-  ['{"password":synthetic-bare-906}', '{"password":"[removed]"}', "password"],
+  ['{"password":synthetic-bare-906}', '{"password":[removed]}', "password"],
 ])(
   "redacts malformed field values without repairing other bytes",
   (raw, safe, field) => {
@@ -731,7 +731,7 @@ it.each([",\n", "}\n", "]\n", "}, ]\n"])(
       { ...source.attempts[1], requestBody: raw, responseBody: "" },
     ];
     const imported = importIncident(JSON.stringify(source));
-    const expected = raw.replace(/synthetic-record-94[123]/g, "[removed]");
+    const expected = raw.replace(/"synthetic-record-94[123]"/g, "[removed]");
     expect(imported.attempts[0].requestBody).toBe(expected);
     expect(imported.redactions).toEqual(
       [0, 1, 2].map(
@@ -745,6 +745,50 @@ it.each([",\n", "}\n", "]\n", "}, ]\n"])(
       });
       expect(reopened).toEqual(imported);
       expect(report(reopened)).not.toMatch(/synthetic-record-94[123]/);
+    }
+  },
+);
+
+it.each([
+  "undefined",
+  "NaN",
+  "'synthetic-single-951'",
+  "correct horse battery staple",
+  "'synthetic, comma 952'",
+])(
+  "retains invalid JSON evidence while removing the whole sensitive value %j",
+  (value) => {
+    const source = fixture();
+    const raw = `{"amount": 10, "password": ${value}, "x": 1}`;
+    source.attempts = [
+      {
+        ...source.attempts[1],
+        status: 400,
+        requestBody: raw,
+        responseBody: '{"error":"invalid_json"}',
+      },
+    ];
+    const imported = importIncident(JSON.stringify(source));
+    expect(imported.attempts[0].requestBody).toBe(
+      '{"amount": 10, "password": [removed], "x": 1}',
+    );
+    expect(imported.redactions).toEqual([
+      "attempt 1.requestBody.password: sensitive field",
+    ]);
+    let reopened = imported;
+    for (let i = 0; i < 3; i++) {
+      expect(() => JSON.parse(reopened.attempts[0].requestBody)).toThrow();
+      expect(
+        findings(reopened, reopened.attempts[0]).map((item) => item.title),
+      ).toContain("Request body is not valid JSON");
+      expect(report(reopened)).toContain(
+        '```text\n{"amount": 10, "password": [removed], "x": 1}',
+      );
+      expect(report(reopened)).not.toContain(value);
+      expect(reopened).toEqual(imported);
+      reopened = importIncident(JSON.stringify(reopened), {
+        restoreRedactions: true,
+      });
     }
   },
 );

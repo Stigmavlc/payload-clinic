@@ -114,9 +114,30 @@ function looseFields(value: string): LooseField[] {
               tokenKinds.CommaToken,
               tokenKinds.EOF,
             ].includes(token)
-          )
-            end = start + scanner.getTokenLength();
-          else end = start;
+          ) {
+            end = start;
+            if (value[base + start] === "'") {
+              end++;
+              while (base + end < value.length) {
+                const character = value[base + end++];
+                if (character === "\\") end++;
+                else if (character === "'") break;
+              }
+            } else {
+              while (
+                base + end < value.length &&
+                !/[,}\]\r\n]/.test(value[base + end])
+              ) {
+                if (
+                  value[base + end] === "/" &&
+                  /[/*]/.test(value[base + end + 1] ?? "")
+                )
+                  break;
+                end++;
+              }
+              while (end > start && /\s/.test(value[base + end - 1])) end--;
+            }
+          } else end = start;
         }
         fields.push({
           key: node.children[0].value as string,
@@ -478,7 +499,7 @@ export function importIncident(
         for (const field of patches) {
           if (field.start < cursor) continue;
           pieces.push(scrubText(value.slice(cursor, field.start), path));
-          pieces.push('"[removed]"');
+          pieces.push("[removed]");
           const safePath = scrubText(
             field.path
               .map((part) =>
@@ -487,7 +508,11 @@ export function importIncident(
               .join(""),
             path,
           );
-          if (value.slice(field.start, field.end) !== '"[removed]"')
+          if (
+            !["[removed]", '"[removed]"'].includes(
+              value.slice(field.start, field.end),
+            )
+          )
             redactions.add(`${path}${safePath}: sensitive field`);
           cursor = field.end;
         }

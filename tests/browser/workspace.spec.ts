@@ -712,3 +712,62 @@ test("a completed signature check cannot describe edited inputs", async ({
   await expect(page.locator(".result")).toHaveCount(0);
   await expect(page.locator(".error")).toHaveCount(0);
 });
+
+test("masking an undefined value preserves the invalid JSON observation after reload and export", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Broken value evidence",
+      senderTimeoutMs: 2000,
+      attempts: [
+        {
+          id: "invalid-953",
+          eventId: "evt-953",
+          receivedAt: "2026-10-18T14:00:00Z",
+          status: 400,
+          durationMs: 20,
+          headers: {},
+          requestBody: '{"amount":10,"token":undefined}',
+          responseBody: '{"error":"invalid_json"}',
+        },
+      ],
+    }),
+  );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  const saved = await page.evaluate(() =>
+    localStorage.getItem("payload-clinic.incident.v1"),
+  );
+  for (let i = 0; i < 3; i++) {
+    await expect(
+      page.getByText("Request body is not valid JSON", { exact: true }),
+    ).toBeVisible();
+    const body = JSON.parse(
+      (await page.evaluate(() =>
+        localStorage.getItem("payload-clinic.incident.v1"),
+      ))!,
+    ).attempts[0].requestBody;
+    expect(body).toBe('{"amount":10,"token":[removed]}');
+    expect(() => JSON.parse(body)).toThrow();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("payload-clinic.incident.v1"),
+      ),
+    ).toBe(saved);
+    if (i < 2) await page.reload();
+  }
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export report" }).click(),
+  ]);
+  let output = "";
+  for await (const chunk of (await download.createReadStream())!)
+    output += chunk;
+  expect(output).toContain('```text\n{"amount":10,"token":[removed]}');
+  expect(output).toContain("Observed: Request body is not valid JSON");
+  expect(output).not.toContain("undefined");
+});
