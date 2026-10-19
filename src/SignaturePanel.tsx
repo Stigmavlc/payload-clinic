@@ -62,6 +62,7 @@ export function SignaturePanel() {
           onChange={(e) => {
             setRaw(e.target.value);
             setResult(null);
+            setError("");
           }}
         />
         <span className="help">
@@ -129,6 +130,7 @@ export function SignaturePanel() {
             try {
               setRaw(JSON.stringify(JSON.parse(raw)));
               setResult(null);
+              setError("");
             } catch {
               setError(
                 "The body cannot be reformatted because it is not valid JSON.",

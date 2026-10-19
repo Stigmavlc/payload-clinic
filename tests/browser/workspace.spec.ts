@@ -127,6 +127,24 @@ test("signature inputs remain transient and reformatting invalidates the digest"
   await expect(
     page.getByRole("link", { name: "RFC 4231", exact: true }),
   ).toHaveCSS("text-decoration-line", "underline");
+  await page.getByLabel("Raw request body").fill("{");
+  await page.getByRole("button", { name: "Reformat JSON to compare" }).click();
+  await expect(
+    page.getByText(
+      "The body cannot be reformatted because it is not valid JSON.",
+    ),
+  ).toBeVisible();
+  await page.getByLabel("Raw request body").fill('{ "status": "ok" }');
+  await expect(
+    page.getByText(
+      "The body cannot be reformatted because it is not valid JSON.",
+    ),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Reformat JSON to compare" }).click();
+  await expect(page.getByLabel("Raw request body")).toHaveValue(
+    '{"status":"ok"}',
+  );
+  await expect(page.locator(".error")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Load signed sample", exact: true })
     .click();
@@ -607,26 +625,24 @@ test("a single record explains that comparison needs another attempt", async ({
   await page
     .getByRole("button", { name: "Import incident", exact: true })
     .click();
-  await page
-    .getByLabel("Or paste an incident")
-    .fill(
-      JSON.stringify({
-        title: "Single attempt",
-        senderTimeoutMs: 3000,
-        attempts: [
-          {
-            id: "only-one",
-            eventId: "evt-only",
-            receivedAt: "2026-10-18T09:00:00Z",
-            status: 200,
-            durationMs: 100,
-            headers: {},
-            requestBody: "{}",
-            responseBody: "",
-          },
-        ],
-      }),
-    );
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Single attempt",
+      senderTimeoutMs: 3000,
+      attempts: [
+        {
+          id: "only-one",
+          eventId: "evt-only",
+          receivedAt: "2026-10-18T09:00:00Z",
+          status: 200,
+          durationMs: 100,
+          headers: {},
+          requestBody: "{}",
+          responseBody: "",
+        },
+      ],
+    }),
+  );
   await page.getByRole("button", { name: "Validate and import" }).click();
   await page.getByRole("tab", { name: "Compare attempts" }).click();
   await expect(
