@@ -591,3 +591,31 @@ it.each(["\n", "\r\n", " ", "\t"])(
     expect(report(reopened)).not.toMatch(/synthetic-secret|synthetic-password/);
   },
 );
+
+it("preserves empty collections and boolean form and header values through reopening", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      headers: { "X-Email-Verified": "true", "X-Signature-Checked": "false" },
+      requestBody:
+        '{ "emails": [  ], "cookies": { \n }, "tokens": [1], "secrets": {"count":2} }',
+      responseBody: "email_verified=false&has_signature=true&qty=2",
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(
+    '{ "emails": [  ], "cookies": { \n }, "tokens": "[removed]", "secrets": "[removed]" }',
+  );
+  expect(incident.attempts[0].headers).toEqual(source.attempts[0].headers);
+  expect(incident.attempts[0].responseBody).toBe(
+    source.attempts[0].responseBody,
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.requestBody.tokens: sensitive field",
+    "attempt 1.requestBody.secrets: sensitive field",
+  ]);
+  expect(
+    importIncident(JSON.stringify(incident), { restoreRedactions: true }),
+  ).toEqual(incident);
+});
