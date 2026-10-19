@@ -771,3 +771,87 @@ test("masking an undefined value preserves the invalid JSON observation after re
   expect(output).toContain("Observed: Request body is not valid JSON");
   expect(output).not.toContain("undefined");
 });
+
+test("body check labels retain the original form and unsupported field scopes across reloads", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  const plainBodies = [
+    "{'password': 'synthetic-python-971'}",
+    "{ password: 'synthetic-node-972' }",
+  ];
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Original check scopes",
+      senderTimeoutMs: 2000,
+      attempts: [
+        {
+          id: "scope-1",
+          eventId: "evt-scope-1",
+          receivedAt: "2026-10-18T14:00:00Z",
+          status: 200,
+          durationMs: 20,
+          headers: {},
+          requestBody: "jane%40example.test=delivered&token=synthetic-form-973",
+          responseBody: "",
+        },
+        ...plainBodies.map((requestBody, index) => ({
+          id: `scope-${index + 2}`,
+          eventId: `evt-scope-${index + 2}`,
+          receivedAt: `2026-10-18T14:0${index + 1}:00Z`,
+          status: 400,
+          durationMs: 20,
+          headers: {},
+          requestBody,
+          responseBody: "",
+        })),
+      ],
+    }),
+  );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  const saved = await page.evaluate(() =>
+    localStorage.getItem("payload-clinic.incident.v1"),
+  );
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await page.getByRole("button", { name: /scope-1/ }).click();
+    await expect(
+      page.getByText("Form fields and text patterns checked.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Redacted request body", { exact: true }),
+    ).toHaveText("[email removed]=delivered&token=[removed]");
+    for (let index = 0; index < plainBodies.length; index++) {
+      await page
+        .getByRole("button", { name: new RegExp(`scope-${index + 2}`) })
+        .click();
+      await expect(
+        page.getByText(
+          "Text patterns only; this body has no JSON or form field checks.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByLabel("Redacted request body", { exact: true }),
+      ).toHaveText(plainBodies[index]);
+    }
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("payload-clinic.incident.v1"),
+      ),
+    ).toBe(saved);
+    if (cycle < 2) await page.reload();
+  }
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export report" }).click(),
+  ]);
+  let output = "";
+  for await (const chunk of (await download.createReadStream())!)
+    output += chunk;
+  expect(output).toContain("Form fields and text patterns checked.");
+  expect(output.match(/Text patterns only/g)).toHaveLength(2);
+  expect(output).not.toMatch(/jane|synthetic-form-973|JSON-like/);
+});

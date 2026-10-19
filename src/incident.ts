@@ -2,6 +2,8 @@ import * as jsonc from "jsonc-parser";
 import { createScanner, getNodePath, parseTree, type Node } from "jsonc-parser";
 const tokenKinds = (jsonc as unknown as { SyntaxKind: Record<string, number> })
   .SyntaxKind;
+export type BodyCheck =
+  "json" | "form" | "json-like" | "text" | "empty" | "unknown";
 export type Attempt = {
   id: string;
   eventId: string;
@@ -11,6 +13,8 @@ export type Attempt = {
   headers: Record<string, string>;
   requestBody: string;
   responseBody: string;
+  requestChecks?: BodyCheck;
+  responseChecks?: BodyCheck;
 };
 export type Incident = {
   title: string;
@@ -42,24 +46,49 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 const formFields = (value: string): URLSearchParams | null => {
   const text = value.trim();
-  return text.includes("=") &&
+  return !/^[{"]/.test(text) &&
+    text.includes("=") &&
     /^[^&=\s]+(?:=[^\r\n&]*)?(?:&[^&=\s]+(?:=[^\r\n&]*)?)*$/.test(text)
     ? new URLSearchParams(text)
     : null;
 };
 const looksLikeJSON = (value: string) => /^\s*(?:[\[{]|\/[/\*])/.test(value);
-export function bodyChecks(value: string): string {
-  if (!value) return "No body recorded.";
+export function bodyCheckKind(value: string): BodyCheck {
+  if (!value) return "empty";
   try {
     JSON.parse(value);
-    return "JSON fields and text patterns checked.";
+    return "json";
   } catch {
     /* Keep the source bytes. */
   }
-  if (formFields(value)) return "Form fields and text patterns checked.";
-  if (looksLikeJSON(value))
-    return "Recognised JSON-like fields and text patterns checked; the body is not valid JSON.";
-  return "Text patterns only; this body has no JSON or form field checks.";
+  if (formFields(value)) return "form";
+  if (looksLikeJSON(value) && looseFields(value).length) return "json-like";
+  return "text";
+}
+export function bodyChecks(
+  value: string,
+  checks = bodyCheckKind(value),
+): string {
+  switch (checks) {
+    case "empty":
+      return "No body recorded.";
+    case "json":
+      return "JSON fields and text patterns checked.";
+    case "form":
+      return "Form fields and text patterns checked.";
+    case "json-like":
+      return "Recognised JSON-like fields and text patterns checked; the body is not valid JSON.";
+    case "unknown":
+      return "Original check scope was not saved; review this saved body before sharing.";
+    default:
+      return "Text patterns only; this body has no JSON or form field checks.";
+  }
+}
+function restoredScope(value: unknown): BodyCheck {
+  return typeof value === "string" &&
+    ["json", "form", "json-like", "text", "empty", "unknown"].includes(value)
+    ? (value as BodyCheck)
+    : "unknown";
 }
 type LooseField = {
   key: string;
@@ -281,6 +310,12 @@ export function importIncident(
       headers: a.headers as Record<string, string>,
       requestBody: a.requestBody as string,
       responseBody: a.responseBody as string,
+      requestChecks: options.restoreRedactions
+        ? restoredScope(a.requestChecks)
+        : bodyCheckKind(a.requestBody as string),
+      responseChecks: options.restoreRedactions
+        ? restoredScope(a.responseChecks)
+        : bodyCheckKind(a.responseBody as string),
     };
   });
   if (new Set(rawAttempts.map((a) => a.id)).size !== rawAttempts.length)
@@ -487,7 +522,7 @@ export function importIncident(
     try {
       JSON.parse(value);
     } catch {
-      if (looksLikeJSON(value)) {
+      if (looksLikeJSON(value) && !formFields(value)) {
         const patches = looseFields(value).filter(
           (field) =>
             sensitiveField(field.key) &&
@@ -820,7 +855,7 @@ export function compareAttempts(left: Attempt, right: Attempt) {
 }
 
 export function report(incident: Incident): string {
-  const fenced = (body: string): string => {
+  const fenced = (body: string, checks = bodyCheckKind(body)): string => {
     const length = Math.max(
       3,
       ...[...body.matchAll(/`+/g)].map((match) => match[0].length + 1),
@@ -829,7 +864,7 @@ export function report(incident: Incident): string {
     let language = "text";
     try {
       JSON.parse(body);
-      language = "json";
+      if (checks === "json") language = "json";
     } catch {
       /* Keep the recorded text. */
     }
@@ -863,12 +898,12 @@ export function report(incident: Incident): string {
         : "No headers recorded",
       "",
       "Request:",
-      bodyChecks(a.requestBody),
-      fenced(a.requestBody),
+      bodyChecks(a.requestBody, a.requestChecks),
+      fenced(a.requestBody, a.requestChecks),
       "",
       "Response:",
-      bodyChecks(a.responseBody),
-      fenced(a.responseBody || "(empty response body)"),
+      bodyChecks(a.responseBody, a.responseChecks),
+      fenced(a.responseBody || "(empty response body)", a.responseChecks),
       "",
     ]),
     "## Redactions",

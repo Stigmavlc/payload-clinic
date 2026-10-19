@@ -396,7 +396,7 @@ function App() {
                       <span className="eyebrow">Redacted</span>
                     </div>
                     <p className="help mb-2">
-                      {bodyChecks(current.requestBody)}
+                      {bodyChecks(current.requestBody, current.requestChecks)}
                     </p>
                     <pre tabIndex={0} aria-label="Redacted request body">
                       {current.requestBody}
@@ -408,7 +408,7 @@ function App() {
                       <span className="eyebrow">Redacted</span>
                     </div>
                     <p className="help mb-2">
-                      {bodyChecks(current.responseBody)}
+                      {bodyChecks(current.responseBody, current.responseChecks)}
                     </p>
                     <pre tabIndex={0} aria-label="Redacted response body">
                       {current.responseBody || "(empty response body)"}

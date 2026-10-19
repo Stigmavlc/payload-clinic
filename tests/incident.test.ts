@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bodyChecks,
   compareAttempts,
   findings,
   formatGap,
@@ -792,3 +793,84 @@ it.each([
     }
   },
 );
+
+it.each([
+  "{'id': 'e1', 'password': 'synthetic-python-961'}",
+  "{ id: 'e1', password: 'synthetic-node-962' }",
+])(
+  "labels unsupported field names as text checks without implying field redaction",
+  (body) => {
+    const source = fixture();
+    source.attempts = [
+      { ...source.attempts[1], requestBody: body, responseBody: "" },
+    ];
+    const imported = importIncident(JSON.stringify(source));
+    expect(imported.attempts[0].requestBody).toBe(body);
+    expect(imported.attempts[0].requestChecks).toBe("text");
+    expect(imported.redactions).toEqual([]);
+    let reopened = imported;
+    for (let i = 0; i < 3; i++) {
+      expect(
+        bodyChecks(
+          reopened.attempts[0].requestBody,
+          reopened.attempts[0].requestChecks,
+        ),
+      ).toBe("Text patterns only; this body has no JSON or form field checks.");
+      expect(report(reopened)).toContain(
+        "Text patterns only; this body has no JSON or form field checks.",
+      );
+      expect(report(reopened)).toContain("```text\n" + body);
+      expect(reopened).toEqual(imported);
+      reopened = importIncident(JSON.stringify(reopened), {
+        restoreRedactions: true,
+      });
+    }
+  },
+);
+it("keeps the original form scope when redaction changes its first field name", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      requestBody: "jane%40example.test=delivered&token=synthetic-form-963",
+      responseBody: "",
+    },
+  ];
+  const imported = importIncident(JSON.stringify(source));
+  expect(imported.attempts[0].requestBody).toBe(
+    "[email removed]=delivered&token=[removed]",
+  );
+  expect(imported.attempts[0].requestChecks).toBe("form");
+  let reopened = imported;
+  for (let i = 0; i < 3; i++) {
+    expect(reopened).toEqual(imported);
+    expect(
+      bodyChecks(
+        reopened.attempts[0].requestBody,
+        reopened.attempts[0].requestChecks,
+      ),
+    ).toBe("Form fields and text patterns checked.");
+    expect(report(reopened)).toContain(
+      "Form fields and text patterns checked.",
+    );
+    expect(report(reopened)).not.toMatch(/jane|synthetic-form-963|JSON-like/);
+    reopened = importIncident(JSON.stringify(reopened), {
+      restoreRedactions: true,
+    });
+  }
+});
+it("ignores imported check claims and labels older saved scope as unknown", () => {
+  const source = fixture();
+  const claimed = {
+    ...source,
+    attempts: source.attempts.map((a) => ({ ...a, requestChecks: "text" })),
+  };
+  expect(
+    importIncident(JSON.stringify(claimed)).attempts[0].requestChecks,
+  ).toBe("json");
+  const restored = importIncident(JSON.stringify(source), {
+    restoreRedactions: true,
+  });
+  expect(restored.attempts[0].requestChecks).toBe("unknown");
+  expect(report(restored)).toContain("Original check scope was not saved");
+});
