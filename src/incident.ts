@@ -432,23 +432,34 @@ export function importIncident(
     pieces.push(value.slice(previous));
     return pieces.join("");
   };
-  const attempts = [...rawAttempts]
-    .sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt))
-    .map((a, i) => ({
-      ...a,
-      id: scrubText(a.id, `attempt ${i + 1}.id`),
-      eventId: scrubText(a.eventId, `attempt ${i + 1}.eventId`),
-      headers: scrub(a.headers, `attempt ${i + 1}.headers`) as Record<
-        string,
-        string
-      >,
-      requestBody: body(a.requestBody, `attempt ${i + 1}.requestBody`),
-      responseBody: body(a.responseBody, `attempt ${i + 1}.responseBody`),
-    }));
+  const orderedAttempts = [...rawAttempts].sort(
+    (a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt),
+  );
+  const attempts = orderedAttempts.map((a, i) => ({
+    ...a,
+    id: scrubText(a.id, `attempt ${i + 1}.id`),
+    eventId: scrubText(a.eventId, `attempt ${i + 1}.eventId`),
+    headers: scrub(a.headers, `attempt ${i + 1}.headers`) as Record<
+      string,
+      string
+    >,
+    requestBody: body(a.requestBody, `attempt ${i + 1}.requestBody`),
+    responseBody: body(a.responseBody, `attempt ${i + 1}.responseBody`),
+  }));
   if (new Set(attempts.map((a) => a.id)).size !== attempts.length)
     throw new Error(
       "Attempt identifiers become identical after redaction. Give them unique non-sensitive labels before importing.",
     );
+  const eventOrigins = new Map<string, string>();
+  attempts.forEach((attempt, index) => {
+    const original = orderedAttempts[index].eventId;
+    const previous = eventOrigins.get(attempt.eventId);
+    if (previous !== undefined && previous !== original)
+      throw new Error(
+        "Different event identifiers become identical after redaction. Replace them with distinct labels before importing, keeping genuinely repeated events labelled alike.",
+      );
+    eventOrigins.set(attempt.eventId, original);
+  });
   const title = scrubText(input.title, "title");
   const restoredLog: string[] = [];
   if (options.restoreRedactions && Array.isArray(input.redactions))

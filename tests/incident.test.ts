@@ -36,6 +36,24 @@ const fixture = () => ({
     },
   ],
 });
+it("rejects different Message-ID events that merge but preserves genuine repeats", () => {
+  const source = fixture();
+  source.attempts[0].eventId = "20261018100000.1.AB12CD@mg.example.test";
+  source.attempts[1].eventId = "20261018100000.2.EF34GH@mg.example.test";
+  expect(() => importIncident(JSON.stringify(source))).toThrow(
+    "Different event identifiers become identical",
+  );
+  source.attempts[1].eventId = source.attempts[0].eventId;
+  const incident = importIncident(JSON.stringify(source));
+  expect(
+    compareAttempts(incident.attempts[0], incident.attempts[1]).sameEvent,
+  ).toBe(true);
+  expect(
+    findings(incident, incident.attempts[0]).some(
+      (f) => f.title === "Event identifier repeated",
+    ),
+  ).toBe(true);
+});
 describe("incident import and evidence", () => {
   it("orders attempts chronologically and compares the actual gap", () => {
     const x = importIncident(JSON.stringify(fixture()));

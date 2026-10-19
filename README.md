@@ -47,7 +47,7 @@ Signing inputs use separate, temporary component memory. Leaving **Signature che
 
 ## Incident format
 
-Import a JSON file or paste a JSON object. The whole file is limited to 1 MB, with 1 to 100 attempts and a title of 1 to 180 characters. Unknown properties are ignored. Header names map to strings. Attempt identifiers must remain unique after redaction; use distinct labels that contain no personal details. Event identifiers may repeat.
+Import a JSON file or paste a JSON object. The whole file is limited to 1 MB, with 1 to 100 attempts and a title of 1 to 180 characters. Unknown properties are ignored. Header names map to strings. Attempt identifiers must remain unique after redaction; use distinct labels that contain no personal details. Event identifiers may repeat when the original identifiers are identical. If redaction would merge different event identifiers, import stops with an error. Replace those identifiers with distinct labels before importing, using the same label only for records of the same event.
 
 ```json
 {
