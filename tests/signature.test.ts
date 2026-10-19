@@ -37,3 +37,9 @@ it("describes past and future signature timestamps accurately", () => {
   expect(timestampAge(-902)).toBe("902 seconds ahead of the current time");
   expect(timestampAge(0)).toBe("at the current time");
 });
+
+it("rejects malformed signature bytes with an otherwise valid timestamp", async () => {
+  await expect(
+    verifyStripe("{}", "t=1000,v1=not-a-digest", "synthetic-key-123", 1000),
+  ).rejects.toThrow("64 hexadecimal");
+});
