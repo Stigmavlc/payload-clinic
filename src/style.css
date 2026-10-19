@@ -1,8 +1,9 @@
 @import "tailwindcss";
 @theme {
   --font-sans: "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
-    "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    "DejaVu Sans Mono", monospace;
 }
 :root {
   font-family: var(--font-sans);
@@ -38,6 +39,8 @@ button:disabled {
   opacity: 0.6;
 }
 a {
+  color: var(--accent);
+  text-decoration-line: underline;
   text-underline-offset: 3px;
 }
 @layer base {
