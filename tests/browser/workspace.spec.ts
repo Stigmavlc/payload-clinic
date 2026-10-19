@@ -374,6 +374,18 @@ test("multi-day attempts show dates and readable retry gaps", async ({
   await expect(
     page.getByText("1 day, 1 second", { exact: true }),
   ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.getByRole("tab", { name: "Delivery evidence" }).click();
+  await page.getByRole("button", { name: /Attempt 2: late/ }).click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/missing-response-390.png",
+    fullPage: true,
+  });
 });
 
 for (const width of [1440, 390]) {
