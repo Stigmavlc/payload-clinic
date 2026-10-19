@@ -236,7 +236,7 @@ test("expired signatures show a rejected timestamp before the matching digest", 
     }),
   ).toBeVisible();
   await expect(page.locator(".result")).toHaveClass(/error/);
-  await expect(page.locator(".result")).toContainText(/seconds ago/);
+  await expect(page.locator(".result")).toContainText(/15 minutes.*ago/);
   await expect(page.locator(".result")).toContainText(
     "Digest comparison: matches",
   );
