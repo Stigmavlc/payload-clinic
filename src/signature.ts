@@ -1,3 +1,4 @@
+import { formatGap } from "./incident";
 const encoder = new TextEncoder();
 export async function hmacSha256(
   key: Uint8Array,
@@ -59,5 +60,5 @@ export async function verifyStripe(
 
 export function timestampAge(ageSeconds: number): string {
   if (ageSeconds === 0) return "at the current time";
-  return `${Math.abs(ageSeconds)} seconds ${ageSeconds > 0 ? "ago" : "ahead of the current time"}`;
+  return `${formatGap(Math.abs(ageSeconds) * 1000)} ${ageSeconds > 0 ? "ago" : "ahead of the current time"}`;
 }

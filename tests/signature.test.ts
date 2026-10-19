@@ -33,9 +33,16 @@ it("rejects ambiguous timestamps and missing signatures", async () => {
 });
 
 it("describes past and future signature timestamps accurately", () => {
-  expect(timestampAge(902)).toBe("902 seconds ago");
-  expect(timestampAge(-902)).toBe("902 seconds ahead of the current time");
+  expect(timestampAge(902)).toBe("15 minutes, 2 seconds ago");
+  expect(timestampAge(-902)).toBe(
+    "15 minutes, 2 seconds ahead of the current time",
+  );
   expect(timestampAge(0)).toBe("at the current time");
+  expect(timestampAge(93785)).toBe("1 day, 2 hours, 3 minutes, 5 seconds ago");
+  expect(timestampAge(1209601)).toBe("14 days, 1 second ago");
+  expect(timestampAge(-7199)).toBe(
+    "1 hour, 59 minutes, 59 seconds ahead of the current time",
+  );
 });
 
 it("rejects malformed signature bytes with an otherwise valid timestamp", async () => {
