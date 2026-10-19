@@ -22,6 +22,8 @@ export type Finding = {
 };
 const sensitive =
   /authorization|cookie|signature|token|secret|password|api.?key|email/i;
+const sensitiveField = (key: string): boolean =>
+  sensitive.test(key.replace(/\[(?:email|secret|credential) removed\]/gi, ""));
 const email =
   /(?<![A-Z0-9.!#$%&'*+/=?^_`{|}~-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Z0-9-]{1,63}(?:\.[A-Z0-9-]{1,63})+(?![A-Z0-9-])/gi;
 const token =
@@ -149,7 +151,7 @@ export function importIncident(
       return value.forEach((v, i) => collect(v, `${path}[${i}]`, depth + 1));
     if (isRecord(value))
       for (const [key, v] of Object.entries(value)) {
-        if (sensitive.test(key) && typeof v === "string") {
+        if (sensitiveField(key) && typeof v === "string") {
           remember(v);
           if (/authorization/i.test(key)) {
             const credential = /^(?:Bearer|Basic)\s+(\S+)$/i.exec(v);
@@ -174,7 +176,7 @@ export function importIncident(
         if (e instanceof Error && e.message.includes("nested too deeply"))
           throw e;
         formFields(body)?.forEach((v, key) => {
-          if (sensitive.test(key)) remember(v);
+          if (sensitiveField(key)) remember(v);
         });
       }
     }
@@ -277,26 +279,31 @@ export function importIncident(
     });
     return repeat ? repeated(clean, path) : clean;
   };
+  const fieldName = (key: string, path: string, used: Set<string>): string => {
+    const base = scrubText(key, `${path}.field name`, false);
+    let safe = base;
+    for (let number = 2; used.has(safe); number++) safe = `${base} [${number}]`;
+    used.add(safe);
+    return safe;
+  };
   const scrub = (value: unknown, path: string): unknown => {
     if (typeof value === "string") return scrubText(value, path);
     if (Array.isArray(value))
       return value.map((v, i) => scrub(v, `${path}[${i}]`));
-    if (isRecord(value))
+    if (isRecord(value)) {
+      const used = new Set<string>();
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => {
-          if (sensitive.test(k)) {
+          const safeKey = fieldName(k, path, used);
+          if (sensitiveField(k)) {
             if (v !== "[removed]")
-              redactions.add(
-                `${path}.${scrubText(k, path, false)}: sensitive field`,
-              );
-            return [scrubText(k, path, false), "[removed]"];
+              redactions.add(`${path}.${safeKey}: sensitive field`);
+            return [safeKey, "[removed]"];
           }
-          return [
-            scrubText(k, path, false),
-            scrub(v, `${path}.${scrubText(k, "field name", false)}`),
-          ];
+          return [safeKey, scrub(v, `${path}.${safeKey}`)];
         }),
       );
+    }
     return value;
   };
   const body = (value: string, path: string): string => {
@@ -310,6 +317,8 @@ export function importIncident(
             .replace(/%5B/gi, "[")
             .replace(/%5D/gi, "]")
             .replace(/%20/g, " ");
+        const names = new Map<string, string>();
+        const used = new Set<string>();
         return value
           .split("&")
           .map((part) => {
@@ -319,9 +328,10 @@ export function importIncident(
             const separator = part.indexOf("=");
             const rawKey = separator < 0 ? part : part.slice(0, separator);
             const rawValue = separator < 0 ? "" : part.slice(separator + 1);
-            const safeKey = scrubText(key, path, false);
+            const safeKey = names.get(key) ?? fieldName(key, path, used);
+            names.set(key, safeKey);
             let safeValue: string;
-            if (sensitive.test(key)) {
+            if (sensitiveField(key)) {
               if (v !== "[removed]")
                 redactions.add(`${path}.${safeKey}: sensitive form field`);
               safeValue = "[removed]";
@@ -369,12 +379,13 @@ export function importIncident(
             patches.push({ ...item, replacement: JSON.stringify(clean) });
         }
       } else if (char === "{") {
+        const used = new Set<string>();
         cursor++;
         whitespace();
         while (value[cursor] !== "}") {
           const key = stringToken();
           const safeKey = apply
-            ? scrubText(key.decoded, currentPath, false)
+            ? fieldName(key.decoded, currentPath, used)
             : key.decoded;
           if (apply && safeKey !== key.decoded)
             patches.push({ ...key, replacement: JSON.stringify(safeKey) });
@@ -382,7 +393,7 @@ export function importIncident(
           cursor++; // colon, already checked by JSON.parse
           whitespace();
           const start = cursor;
-          const remove = apply && sensitive.test(key.decoded);
+          const remove = apply && sensitiveField(key.decoded);
           visit(`${currentPath}.${safeKey}`, apply && !remove, depth + 1);
           if (remove) {
             if (value.slice(start, cursor) !== '"[removed]"')

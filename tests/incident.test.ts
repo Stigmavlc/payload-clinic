@@ -428,3 +428,42 @@ it.each([
 ])("formats retry spacing %s consistently", (gap, expected) =>
   expect(formatGap(gap as number)).toBe(expected),
 );
+
+it("keeps email-named JSON keys, headers and form fields unchanged across two reopens", () => {
+  const source = fixture();
+  source.attempts[0].headers = {
+    "X-jane@example.test": "delivered",
+    "X-joe@example.test": "bounced",
+  };
+  source.attempts[0].requestBody = JSON.stringify({
+    results: {
+      "jane@example.test": { status: "delivered" },
+      "joe@example.test": { status: "bounced", reason: "mailbox full" },
+      "[email removed]": { status: "already redacted" },
+    },
+  });
+  source.attempts[0].responseBody =
+    "jane%40example.test=delivered&joe%40example.test=bounced";
+  const imported = importIncident(JSON.stringify(source));
+  const first = importIncident(JSON.stringify(imported), {
+    restoreRedactions: true,
+  });
+  const second = importIncident(JSON.stringify(first), {
+    restoreRedactions: true,
+  });
+  expect(first).toEqual(imported);
+  expect(second).toEqual(imported);
+  const attempt = imported.attempts[1];
+  expect(Object.values(attempt.headers)).toEqual(["delivered", "bounced"]);
+  expect(Object.keys(attempt.headers)).toHaveLength(2);
+  expect(Object.values(JSON.parse(attempt.requestBody).results)).toEqual([
+    { status: "delivered" },
+    { status: "bounced", reason: "mailbox full" },
+    { status: "already redacted" },
+  ]);
+  expect(attempt.responseBody).toContain("=delivered");
+  expect(attempt.responseBody).toContain("=bounced");
+  expect(
+    imported.redactions.every((line) => !line.startsWith("field name:")),
+  ).toBe(true);
+});

@@ -44,8 +44,14 @@ test("invalid input stays open with an actionable error and valid import is reda
           status: 422,
           durationMs: 90,
           headers: { Authorization: "Bearer topsecret-48" },
-          requestBody:
-            '{"email":"sample@example.test","secret":"topsecret-48"}',
+          requestBody: JSON.stringify({
+            email: "sample@example.test",
+            secret: "topsecret-48",
+            results: {
+              "jane@example.test": { status: "delivered" },
+              "joe@example.test": { status: "bounced", reason: "mailbox full" },
+            },
+          }),
           responseBody: "topsecret-48",
         },
         {
@@ -73,11 +79,20 @@ test("invalid input stays open with an actionable error and valid import is reda
   expect(saved).not.toContain("second-secret-49");
   expect(saved).not.toContain("third-secret-49");
   await page.getByText("Headers and redaction log").click();
+  const originalSaved = await page.evaluate(() =>
+    localStorage.getItem("payload-clinic.incident.v1"),
+  );
+  expect(originalSaved).toContain("mailbox full");
   const originalLog = await page
     .locator(".redaction-list li")
     .allTextContents();
   expect(originalLog.length).toBeGreaterThan(2);
   await page.reload();
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBe(originalSaved);
   await page.getByText("Headers and redaction log").click();
   expect(await page.locator(".redaction-list li").allTextContents()).toEqual(
     originalLog,
@@ -373,27 +388,25 @@ test("imported records keep their identity and export has a visible mobile label
   await page
     .getByRole("button", { name: "Import incident", exact: true })
     .click();
-  await page
-    .getByLabel("Or paste an incident")
-    .fill(
-      JSON.stringify({
-        title: "Slow response and retries",
-        example: "booking",
-        senderTimeoutMs: 1000,
-        attempts: [
-          {
-            id: "private-input",
-            eventId: "event",
-            receivedAt: "2026-10-19T10:00:00Z",
-            status: 200,
-            durationMs: 20,
-            headers: {},
-            requestBody: "{}",
-            responseBody: "{}",
-          },
-        ],
-      }),
-    );
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title: "Slow response and retries",
+      example: "booking",
+      senderTimeoutMs: 1000,
+      attempts: [
+        {
+          id: "private-input",
+          eventId: "event",
+          receivedAt: "2026-10-19T10:00:00Z",
+          status: 200,
+          durationMs: 20,
+          headers: {},
+          requestBody: "{}",
+          responseBody: "{}",
+        },
+      ],
+    }),
+  );
   await page.getByRole("button", { name: "Validate and import" }).click();
   await expect(
     page.getByText("Fictional delivery records, safe to explore.", {
