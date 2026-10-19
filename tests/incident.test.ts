@@ -178,3 +178,33 @@ it("exports readable fenced bodies even when recorded text contains a Markdown f
     "Response:\n````text\n```\nrecorded line\n```\n````",
   );
 });
+
+it("retains ordinary Basic and Bearer phrases as investigation evidence", () => {
+  const data = fixture();
+  data.title = "Basic plan renewals rejected";
+  data.attempts[0].headers = {};
+  data.attempts[0].requestBody = '{"plan":"Basic monthly"}';
+  data.attempts[0].responseBody =
+    'Bearer token expired. Basic authentication required. The bearer of this order. WWW-Authenticate: Basic realm="example"';
+  const incident = importIncident(JSON.stringify(data));
+  expect(incident.title).toBe(data.title);
+  expect(JSON.parse(incident.attempts[1].requestBody).plan).toBe(
+    "Basic monthly",
+  );
+  expect(incident.attempts[1].responseBody).toBe(data.attempts[0].responseBody);
+  expect(incident.redactions).toEqual([]);
+});
+it.each([
+  "Bearer synthetic-credential-82364",
+  "Basic YWxhZGRpbjpvcGVuc2VzYW1l",
+])(
+  "removes credential-shaped %s text without deleting its scheme",
+  (credential) => {
+    const data = fixture();
+    data.attempts[0].responseBody = credential;
+    const incident = importIncident(JSON.stringify(data));
+    expect(incident.attempts[1].responseBody).toBe(
+      credential.split(" ")[0] + " [credential removed]",
+    );
+  },
+);

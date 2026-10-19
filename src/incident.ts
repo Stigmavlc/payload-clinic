@@ -23,11 +23,16 @@ const sensitive =
   /authorization|cookie|signature|token|secret|password|api.?key|email/i;
 const email = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/gi;
 const token =
-  /\b(?:(?:Bearer|Basic)\s+\S+|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/gi;
+  /\b(?:(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/gi;
+const authorizationText = /\b(Bearer|Basic)\s+([A-Za-z0-9._~+/-]+={0,2})/gi;
+const credentialLike = (value: string): boolean =>
+  value.length >= 12 &&
+  !/\s/.test(value) &&
+  (/[0-9_+/=.-]/.test(value) || /^[a-f0-9]{32,}$/i.test(value));
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
-/** Import only the documented fields. Raw input is never returned or persisted. */
+/** Validate documented fields and redact recognised patterns before storage. */
 export function importIncident(
   text: string,
   options: { restoreRedactions?: boolean } = {},
@@ -129,8 +134,7 @@ export function importIncident(
   const redactions = new Set<string>();
   const knownSecrets = new Set<string>();
   const remember = (value: string) => {
-    if (value.length >= 12 && /[0-9A-Z_+/=.-]/.test(value))
-      knownSecrets.add(value);
+    if (credentialLike(value)) knownSecrets.add(value);
   };
   const formFields = (value: string): URLSearchParams | null =>
     /^[^=&\s]+=[^\r\n]*$/.test(value) ? new URLSearchParams(value) : null;
@@ -174,6 +178,25 @@ export function importIncident(
       redactions.add(`${path}: email address`);
       return "[email removed]";
     });
+    clean = clean.replace(
+      authorizationText,
+      (match, scheme: string, value: string) => {
+        let recognised = credentialLike(value);
+        if (scheme.toLowerCase() === "basic") {
+          try {
+            recognised =
+              value.length >= 12 &&
+              /^[A-Za-z0-9+/]+={0,2}$/.test(value) &&
+              atob(value).includes(":");
+          } catch {
+            recognised = false;
+          }
+        }
+        if (!recognised) return match;
+        redactions.add(`${path}: credential pattern`);
+        return `${scheme} [credential removed]`;
+      },
+    );
     clean = clean.replace(token, () => {
       redactions.add(`${path}: credential pattern`);
       return "[credential removed]";
