@@ -526,6 +526,24 @@ export function findings(incident: Incident, attempt: Attempt): Finding[] {
   return result;
 }
 
+export function formatGap(milliseconds: number): string {
+  let remaining = Math.abs(milliseconds);
+  const parts: string[] = [];
+  for (const [size, unit] of [
+    [86400000, "day"],
+    [3600000, "hour"],
+    [60000, "minute"],
+  ] as const) {
+    const count = Math.floor(remaining / size);
+    if (count) parts.push(`${count} ${unit}${count === 1 ? "" : "s"}`);
+    remaining %= size;
+  }
+  const seconds = Number((remaining / 1000).toFixed(3));
+  if (seconds || !parts.length)
+    parts.push(`${seconds} second${seconds === 1 ? "" : "s"}`);
+  return `${milliseconds < 0 ? "minus " : ""}${parts.join(", ")}`;
+}
+
 export function compareAttempts(left: Attempt, right: Attempt) {
   return {
     gapMs: Date.parse(right.receivedAt) - Date.parse(left.receivedAt),
@@ -563,6 +581,11 @@ export function report(incident: Incident): string {
       `## Attempt ${i + 1}: ${a.id}`,
       `Event: ${a.eventId}`,
       `Received: ${a.receivedAt}`,
+      ...(i
+        ? [
+            `Gap from previous attempt: ${formatGap(Date.parse(a.receivedAt) - Date.parse(incident.attempts[i - 1].receivedAt))}`,
+          ]
+        : []),
       `Status: ${a.status ?? "not recorded"}; duration: ${a.durationMs} ms`,
       ...findings(incident, a).map(
         (f) =>

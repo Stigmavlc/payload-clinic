@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareAttempts,
   findings,
+  formatGap,
   importIncident,
   report,
 } from "../src/incident";
@@ -415,3 +416,15 @@ it("patches only removed form values and leaves their replacements readable", ()
     importIncident(JSON.stringify(incident), { restoreRedactions: true }),
   ).toEqual(incident);
 });
+
+it.each([
+  [0, "0 seconds"],
+  [1000, "1 second"],
+  [1500, "1.5 seconds"],
+  [120000, "2 minutes"],
+  [21600000, "6 hours"],
+  [86401000, "1 day, 1 second"],
+  [-86401000, "minus 1 day, 1 second"],
+])("formats retry spacing %s consistently", (gap, expected) =>
+  expect(formatGap(gap as number)).toBe(expected),
+);

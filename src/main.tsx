@@ -11,6 +11,7 @@ import {
 import {
   compareAttempts,
   findings,
+  formatGap,
   importIncident,
   report,
   type Incident,
@@ -212,7 +213,11 @@ function App() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="mono text-xs">
-                      {new Date(a.receivedAt).toISOString().slice(11, 19)} UTC
+                      {new Date(a.receivedAt)
+                        .toISOString()
+                        .slice(0, 19)
+                        .replace("T", " ")}{" "}
+                      UTC
                     </span>
                     <span
                       className={`status status-${a.status === null ? "none" : Math.floor(a.status / 100)}`}
@@ -229,12 +234,11 @@ function App() {
                   </div>
                   {i > 0 && (
                     <span className="gap-note">
-                      {(
-                        (Date.parse(a.receivedAt) -
-                          Date.parse(incident.attempts[i - 1].receivedAt)) /
-                        1000
-                      ).toLocaleString()}{" "}
-                      seconds after previous attempt
+                      {formatGap(
+                        Date.parse(a.receivedAt) -
+                          Date.parse(incident.attempts[i - 1].receivedAt),
+                      )}{" "}
+                      after previous attempt
                     </span>
                   )}
                 </button>
@@ -440,7 +444,7 @@ function App() {
                 <dl className="comparison-summary">
                   <div>
                     <dt>Recorded gap, second minus first</dt>
-                    <dd className="mono">{differences.gapMs / 1000} seconds</dd>
+                    <dd className="mono">{formatGap(differences.gapMs)}</dd>
                   </div>
                   <div>
                     <dt>Event identifier</dt>

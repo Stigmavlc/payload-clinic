@@ -9,7 +9,7 @@ test("sample timeline, comparison and report contain useful evidence", async ({
   ).toBeVisible();
   await page.getByRole("tab", { name: "Compare attempts" }).click();
   await page.getByLabel("Second attempt").selectOption("2");
-  await expect(page.getByText("120 seconds", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 minutes", { exact: true })).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export report" }).click(),
@@ -238,26 +238,24 @@ test("a redacted title survives reload and an unreadable saved copy is preserved
   await page
     .getByRole("button", { name: "Import incident", exact: true })
     .click();
-  await page
-    .getByLabel("Or paste an incident")
-    .fill(
-      JSON.stringify({
-        title,
-        senderTimeoutMs: 1000,
-        attempts: [
-          {
-            id: "first",
-            eventId: "event",
-            receivedAt: "2026-10-19T10:00:00Z",
-            status: 200,
-            durationMs: 20,
-            headers: {},
-            requestBody: "{}",
-            responseBody: "",
-          },
-        ],
-      }),
-    );
+  await page.getByLabel("Or paste an incident").fill(
+    JSON.stringify({
+      title,
+      senderTimeoutMs: 1000,
+      attempts: [
+        {
+          id: "first",
+          eventId: "event",
+          receivedAt: "2026-10-19T10:00:00Z",
+          status: 200,
+          durationMs: 20,
+          headers: {},
+          requestBody: "{}",
+          responseBody: "",
+        },
+      ],
+    }),
+  );
   await page.getByRole("button", { name: "Validate and import" }).click();
   const heading = await page.locator(".main-heading h2").innerText();
   expect(heading.length).toBeGreaterThan(180);
@@ -275,4 +273,49 @@ test("a redacted title survives reload and an unreadable saved copy is preserved
       localStorage.getItem("payload-clinic.incident.v1"),
     ),
   ).toBe("{unreadable");
+});
+
+test("multi-day attempts show dates and readable retry gaps", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page
+    .getByRole("button", { name: "Import incident", exact: true })
+    .click();
+  const attempt = {
+    id: "early",
+    eventId: "same",
+    receivedAt: "2026-10-17T10:00:00Z",
+    status: 503,
+    durationMs: 20,
+    headers: {},
+    requestBody: "{}",
+    responseBody: "",
+  };
+  await page
+    .getByLabel("Or paste an incident")
+    .fill(
+      JSON.stringify({
+        title: "Two-day retries",
+        senderTimeoutMs: 1000,
+        attempts: [
+          attempt,
+          { ...attempt, id: "late", receivedAt: "2026-10-18T10:00:01Z" },
+        ],
+      }),
+    );
+  await page.getByRole("button", { name: "Validate and import" }).click();
+  await expect(page.locator(".timeline")).toContainText(
+    "2026-10-17 10:00:00 UTC",
+  );
+  await expect(page.locator(".timeline")).toContainText(
+    "2026-10-18 10:00:01 UTC",
+  );
+  await expect(page.locator(".timeline")).toContainText(
+    "1 day, 1 second after previous attempt",
+  );
+  await page.getByRole("tab", { name: "Compare attempts" }).click();
+  await expect(
+    page.getByText("1 day, 1 second", { exact: true }),
+  ).toBeVisible();
 });
