@@ -129,3 +129,42 @@ it("preserves ordinary values, longer words and field names during repeated-secr
   expect(body.detail).toBe("private-value-suffix");
   expect(body.exact).toBe("[secret removed]");
 });
+
+it.each([
+  "whsec_syntheticSigning72648",
+  "rk_live_syntheticRestricted8264",
+  "rk_test_syntheticRestricted7352",
+])("removes recognised Stripe credential %s", (credential) => {
+  const data = fixture();
+  data.attempts[0].responseBody = `failure with ${credential}`;
+  const value = importIncident(JSON.stringify(data));
+  expect(JSON.stringify(value)).not.toContain(credential);
+  expect(report(value)).not.toContain(credential);
+});
+it.each([
+  ["Authorization", "Bearer credential-value-7364", "credential-value-7364"],
+  [
+    "Authorization",
+    "Basic YWxhZGRpbjpvcGVuc2VzYW1l",
+    "YWxhZGRpbjpvcGVuc2VzYW1l",
+  ],
+  ["Stripe-Signature", "t=1000,v1=" + "a1".repeat(32), "a1".repeat(32)],
+])("removes a bare credential repeated from %s", (name, header, credential) => {
+  const data = fixture();
+  data.attempts[0].headers = { [name]: header };
+  data.attempts[0].responseBody = `failure with ${credential}`;
+  const value = importIncident(JSON.stringify(data));
+  expect(JSON.stringify(value)).not.toContain(credential);
+  expect(report(value)).not.toContain(credential);
+});
+it("redacts form fields and their repeated values while keeping ordinary fields", () => {
+  const data = fixture();
+  data.attempts[0].requestBody =
+    "token=synthetic-token-8364&password=synthetic-password-9274&quantity=3&note=synthetic-token-8364";
+  const value = importIncident(JSON.stringify(data));
+  expect(JSON.stringify(value)).not.toContain("synthetic-token-8364");
+  expect(report(value)).not.toContain("synthetic-password-9274");
+  const form = new URLSearchParams(value.attempts[1].requestBody);
+  expect(form.get("quantity")).toBe("3");
+  expect(form.get("note")).toBe("[secret removed]");
+});

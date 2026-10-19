@@ -23,7 +23,7 @@ const sensitive =
   /authorization|cookie|signature|token|secret|password|api.?key|email/i;
 const email = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/gi;
 const token =
-  /\b(?:Bearer\s+\S+|(?:sk|pk)_(?:live|test)_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/gi;
+  /\b(?:(?:Bearer|Basic)\s+\S+|(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/gi;
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -128,19 +128,31 @@ export function importIncident(
 
   const redactions = new Set<string>();
   const knownSecrets = new Set<string>();
+  const remember = (value: string) => {
+    if (value.length >= 12 && /[0-9A-Z_+/=.-]/.test(value))
+      knownSecrets.add(value);
+  };
+  const formFields = (value: string): URLSearchParams | null =>
+    /^[^=&\s]+=[^\r\n]*$/.test(value) ? new URLSearchParams(value) : null;
   const collect = (value: unknown, path: string, depth = 0): void => {
     if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
     if (Array.isArray(value))
       return value.forEach((v, i) => collect(v, `${path}[${i}]`, depth + 1));
     if (isRecord(value))
       for (const [key, v] of Object.entries(value)) {
-        if (
-          sensitive.test(key) &&
-          typeof v === "string" &&
-          v.length >= 12 &&
-          /[0-9A-Z_+/=.-]/.test(v)
-        )
-          knownSecrets.add(v);
+        if (sensitive.test(key) && typeof v === "string") {
+          remember(v);
+          if (/authorization/i.test(key)) {
+            const credential = /^(?:Bearer|Basic)\s+(\S+)$/i.exec(v);
+            if (credential) remember(credential[1]);
+          }
+          if (/signature/i.test(key)) {
+            for (const match of v.matchAll(
+              /(?:^|,)\s*v1=([a-fA-F0-9]{64})(?=,|$)/g,
+            ))
+              remember(match[1]);
+          }
+        }
         collect(v, `${path}.${key}`, depth + 1);
       }
   };
@@ -152,6 +164,9 @@ export function importIncident(
       } catch (e) {
         if (e instanceof Error && e.message.includes("nested too deeply"))
           throw e;
+        formFields(body)?.forEach((v, key) => {
+          if (sensitive.test(key)) remember(v);
+        });
       }
     }
   const scrubText = (value: string, path: string, repeat = true): string => {
@@ -204,6 +219,18 @@ export function importIncident(
     try {
       return JSON.stringify(scrub(JSON.parse(value), path), null, 2);
     } catch {
+      const fields = formFields(value);
+      if (fields) {
+        const clean = new URLSearchParams();
+        fields.forEach((v, key) => {
+          const safeKey = scrubText(key, path, false);
+          if (sensitive.test(key)) {
+            redactions.add(`${path}.${safeKey}: sensitive form field`);
+            clean.append(safeKey, "[removed]");
+          } else clean.append(safeKey, scrubText(v, `${path}.${safeKey}`));
+        });
+        return clean.toString();
+      }
       return scrubText(value, path);
     }
   };
