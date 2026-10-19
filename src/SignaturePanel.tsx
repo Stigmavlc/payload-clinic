@@ -45,11 +45,6 @@ export function SignaturePanel() {
           </p>
         </div>
       </div>
-      <div className="notice">
-        Use synthetic samples here. Imports elsewhere are redacted and cannot be
-        used to verify an original signature. No secret, raw body or signature
-        is saved or exported.
-      </div>
       <div className="flex flex-wrap gap-2">
         <button className="secondary" onClick={() => void sample(false)}>
           Load signed sample

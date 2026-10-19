@@ -110,7 +110,7 @@ test("mobile timeline and import remain usable without a page-wide horizontal sc
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("./");
   await expect(
-    page.getByRole("heading", { name: "Follow the delivery." }),
+    page.getByRole("heading", { name: "Delivery timeline" }),
   ).toBeVisible();
   expect(
     await page.evaluate(

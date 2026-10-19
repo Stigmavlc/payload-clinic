@@ -150,11 +150,8 @@ function App() {
       <div className="workspace">
         <aside className="sidebar" aria-label="Delivery timeline">
           <div className="sidebar-heading">
-            <span className="eyebrow">Investigation 01</span>
-            <h1>Follow the delivery.</h1>
-            <p className="muted">
-              Evidence first. A cause only when the records support it.
-            </p>
+            <span className="eyebrow">Webhook records</span>
+            <h1>Delivery timeline</h1>
           </div>
           <div className="sample-control">
             <label htmlFor="samples" className="eyebrow">
@@ -188,9 +185,7 @@ function App() {
           </div>
           <div className="timeline-label">
             <span className="eyebrow">Received attempts</span>
-            <span className="mono">
-              {incident.attempts.length.toString().padStart(2, "0")}
-            </span>
+            <span className="mono">{incident.attempts.length}</span>
           </div>
           <ol className="timeline">
             {incident.attempts.map((a, i) => (
@@ -349,7 +344,6 @@ function App() {
                 <section aria-labelledby="findings-title" className="findings">
                   <div className="section-title">
                     <h3 id="findings-title">What the record says</h3>
-                    <span className="help">No inferred root cause</span>
                   </div>
                   {findings(incident, current).map((f, i) => (
                     <div className="finding" key={i}>
@@ -400,16 +394,8 @@ function App() {
                   ) : (
                     <p className="help">
                       No recognised secret fields or email patterns were found.
-                      This is not a guarantee that every kind of personal
-                      information was removed.
                     </p>
                   )}
-                  <p className="help mt-4">
-                    Automatic redaction cannot recognise arbitrary private data,
-                    encoded values or every credential format. Review the
-                    redacted content before exporting. Use synthetic or already
-                    redacted records.
-                  </p>
                 </details>
               </>
             )}
@@ -463,11 +449,6 @@ function App() {
                     <dd className="mono">{differences.status}</dd>
                   </div>
                 </dl>
-                <p className="notice">
-                  Equal redacted bodies do not prove equal original bytes. Use
-                  the original bytes in the separate signature checker to
-                  investigate a signing mismatch.
-                </p>
                 <div className="payload-grid">
                   <section>
                     <h4 className="mb-3">{current.id}</h4>
@@ -485,8 +466,9 @@ function App() {
           <footer className="page-foot">
             <FileTextIcon />
             <p>
-              Nothing is sent to a webhook endpoint. The report contains
-              observations and checks for a human investigator.
+              Use synthetic or already redacted records. Automatic redaction
+              checks known patterns; review the log and content before sharing.
+              Signing inputs clear when you leave their view.
             </p>
           </footer>
         </main>
@@ -565,11 +547,6 @@ function App() {
                 Download sample format
               </button>
             </div>
-            <p className="help mt-5">
-              Keep live credentials out of this tool. The signature checker uses
-              separate session inputs. Importing does not send requests or
-              replay events.
-            </p>
           </section>
         </div>
       )}
