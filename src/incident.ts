@@ -541,7 +541,7 @@ export function findings(incident: Incident, attempt: Attempt): Finding[] {
     result.push({
       kind: "check",
       title: "Response reached the sender’s time limit",
-      detail: `${attempt.durationMs} ms was recorded against a ${incident.senderTimeoutMs} ms limit. The receiver may have processed an event even if the sender timed out. Check both records before replaying it.`,
+      detail: `${formatNumber(attempt.durationMs)} ms was recorded against a ${formatNumber(incident.senderTimeoutMs)} ms limit. The receiver may have processed an event even if the sender timed out. Check both records before replaying it.`,
     });
   try {
     JSON.parse(attempt.requestBody);
@@ -572,6 +572,10 @@ export function findings(incident: Incident, attempt: Attempt): Finding[] {
   return result;
 }
 
+export function formatNumber(value: number): string {
+  return value.toLocaleString("en-GB", { maximumFractionDigits: 20 });
+}
+
 export function formatGap(milliseconds: number): string {
   let remaining = Math.abs(milliseconds);
   const parts: string[] = [];
@@ -581,12 +585,13 @@ export function formatGap(milliseconds: number): string {
     [60000, "minute"],
   ] as const) {
     const count = Math.floor(remaining / size);
-    if (count) parts.push(`${count} ${unit}${count === 1 ? "" : "s"}`);
+    if (count)
+      parts.push(`${formatNumber(count)} ${unit}${count === 1 ? "" : "s"}`);
     remaining %= size;
   }
   const seconds = Number((remaining / 1000).toFixed(3));
   if (seconds || !parts.length)
-    parts.push(`${seconds} second${seconds === 1 ? "" : "s"}`);
+    parts.push(`${formatNumber(seconds)} second${seconds === 1 ? "" : "s"}`);
   return `${milliseconds < 0 ? "minus " : ""}${parts.join(", ")}`;
 }
 
@@ -625,7 +630,7 @@ export function report(incident: Incident): string {
     "",
     "Redacted investigation sample. Observations do not establish root cause. No live requests were made.",
     "",
-    `Sender time limit: ${incident.senderTimeoutMs} ms`,
+    `Sender time limit: ${formatNumber(incident.senderTimeoutMs)} ms`,
     "",
     ...incident.attempts.flatMap((a, i) => [
       `## Attempt ${i + 1}: ${a.id}`,
@@ -636,7 +641,7 @@ export function report(incident: Incident): string {
             `Gap from previous attempt: ${formatGap(Date.parse(a.receivedAt) - Date.parse(incident.attempts[i - 1].receivedAt))}`,
           ]
         : []),
-      `Status: ${responseStatus(a.status)}; duration: ${a.durationMs} ms`,
+      `Status: ${responseStatus(a.status)}; duration: ${formatNumber(a.durationMs)} ms`,
       ...findings(incident, a).map(
         (f) =>
           `${f.kind === "observed" ? "Observed" : "Check"}: ${f.title}. ${f.detail}`,

@@ -12,6 +12,7 @@ import {
   compareAttempts,
   findings,
   formatGap,
+  formatNumber,
   importIncident,
   report,
   responseStatus,
@@ -235,7 +236,7 @@ function App() {
                   <div className="flex justify-between text-xs muted">
                     <span>{a.eventId}</span>
                     <span className="mono">
-                      {a.durationMs.toLocaleString()} ms
+                      {formatNumber(a.durationMs)} ms
                     </span>
                   </div>
                   {i > 0 && (
@@ -291,7 +292,7 @@ function App() {
               <p className="muted">
                 Sender time limit{" "}
                 <span className="mono">
-                  {incident.senderTimeoutMs.toLocaleString()} ms
+                  {formatNumber(incident.senderTimeoutMs)} ms
                 </span>
                 <span className="separator">/</span> Receiving-side records
               </p>
@@ -362,7 +363,7 @@ function App() {
                   <div className="reading">
                     <span className="eyebrow">Response duration</span>
                     <strong className="mono">
-                      {current.durationMs.toLocaleString()}
+                      {formatNumber(current.durationMs)}
                       <small> ms</small>
                     </strong>
                   </div>

@@ -18,7 +18,7 @@ test("sample timeline, comparison and report contain useful evidence", async ({
   const stream = await download.createReadStream();
   let text = "";
   for await (const chunk of stream!) text += chunk;
-  expect(text).toContain("Sender time limit: 3000 ms");
+  expect(text).toContain("Sender time limit: 3,000 ms");
   expect(text).not.toContain("marisol@example.test");
   expect(text).not.toContain("synthetic-private-value");
 });
@@ -347,6 +347,66 @@ test("blocked storage shows an unavailable warning on first visit", async ({
   ).not.toBeVisible();
 });
 
+test("English durations stay consistent when the browser uses Spanish", async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({ locale: "es-ES" });
+  const page = await context.newPage();
+  try {
+    await page.goto(baseURL!);
+    await page
+      .getByRole("button", { name: "Import incident", exact: true })
+      .click();
+    const attempt = {
+      id: "first",
+      eventId: "same",
+      receivedAt: "2026-10-19T10:00:00Z",
+      status: 202,
+      durationMs: 10450,
+      headers: {},
+      requestBody: "{}",
+      responseBody: "",
+    };
+    await page
+      .getByLabel("Or paste an incident")
+      .fill(
+        JSON.stringify({
+          title: "English duration format",
+          senderTimeoutMs: 10000,
+          attempts: [
+            attempt,
+            {
+              ...attempt,
+              id: "second",
+              receivedAt: "2026-10-19T10:00:01.500Z",
+            },
+          ],
+        }),
+      );
+    await page.getByRole("button", { name: "Validate and import" }).click();
+    await expect(page.locator(".timeline")).toContainText("10,450 ms");
+    await expect(page.locator(".timeline")).toContainText(
+      "1.5 seconds after previous attempt",
+    );
+    await expect(page.locator(".reading")).toContainText(["202", "10,450 ms"]);
+    await expect(page.locator(".findings")).toContainText(
+      "10,450 ms was recorded against a 10,000 ms limit",
+    );
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Export report" }).click(),
+    ]);
+    const stream = await download.createReadStream();
+    let output = "";
+    for await (const chunk of stream!) output += chunk;
+    expect(output).toContain("Sender time limit: 10,000 ms");
+    expect(output).toContain("duration: 10,450 ms");
+    expect(output).toContain("Gap from previous attempt: 1.5 seconds");
+  } finally {
+    await context.close();
+  }
+});
 test("multi-day attempts show dates and readable retry gaps", async ({
   page,
 }) => {
