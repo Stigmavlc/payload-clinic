@@ -146,6 +146,22 @@ test("signature inputs remain transient and reformatting invalidates the digest"
   );
   await expect(page.locator(".error")).toHaveCount(0);
   await page
+    .getByRole("button", { name: "Verify signature", exact: true })
+    .click();
+  await expect(
+    page.getByText("Enter the signing secret for this session."),
+  ).toBeVisible();
+  await page.getByLabel(/^Signing secret/).fill("synthetic-revised-key-922");
+  await expect(page.locator(".error")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Verify signature", exact: true })
+    .click();
+  await expect(
+    page.getByText("The header needs exactly one integer t timestamp."),
+  ).toBeVisible();
+  await page.getByLabel("Stripe-Signature header").fill("t=1000");
+  await expect(page.locator(".error")).toHaveCount(0);
+  await page
     .getByRole("button", { name: "Load signed sample", exact: true })
     .click();
   await page
@@ -652,4 +668,38 @@ test("a single record explains that comparison needs another attempt", async ({
   ).toBeVisible();
   await expect(page.getByLabel("Second attempt")).toHaveCount(0);
   await expect(page.locator(".comparison-summary")).toHaveCount(0);
+});
+
+test("a completed signature check cannot describe edited inputs", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page.getByRole("tab", { name: "Signature check" }).click();
+  await page
+    .getByRole("button", { name: "Load signed sample", exact: true })
+    .click();
+  await expect(page.getByLabel(/^Signing secret/)).not.toHaveValue("");
+  await page.evaluate(() => {
+    const sign = crypto.subtle.sign.bind(crypto.subtle);
+    crypto.subtle.sign = async (...args: Parameters<typeof sign>) => {
+      await new Promise<void>((resolve) => {
+        (
+          window as unknown as { releaseSignature: () => void }
+        ).releaseSignature = resolve;
+      });
+      return sign(...args);
+    };
+  });
+  await page
+    .getByRole("button", { name: "Verify signature", exact: true })
+    .click();
+  await page.getByLabel(/^Signing secret/).fill("synthetic-changed-key-923");
+  await page.evaluate(() =>
+    (window as unknown as { releaseSignature: () => void }).releaseSignature(),
+  );
+  await expect(
+    page.getByRole("button", { name: "Verify signature", exact: true }),
+  ).toBeEnabled();
+  await expect(page.locator(".result")).toHaveCount(0);
+  await expect(page.locator(".error")).toHaveCount(0);
 });

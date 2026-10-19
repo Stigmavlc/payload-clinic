@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { LockClosedIcon } from "@radix-ui/react-icons";
 import { hmacSha256, timestampAge, verifyStripe } from "./signature";
 
@@ -11,7 +11,14 @@ export function SignaturePanel() {
   > | null>(null);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  const revision = useRef(0);
+  function invalidate() {
+    revision.current++;
+    setResult(null);
+    setError("");
+  }
   async function sample(expired: boolean) {
+    const sampleRevision = ++revision.current;
     const text = '{ "id": "evt-synthetic-628", "type": "booking.confirmed" }';
     const key = "synthetic-demo-key-not-a-live-secret";
     const time = Math.floor(Date.now() / 1000) - (expired ? 900 : 0);
@@ -19,6 +26,7 @@ export function SignaturePanel() {
       new TextEncoder().encode(key),
       `${time}.${text}`,
     );
+    if (sampleRevision !== revision.current) return;
     setRaw(text);
     setSecret(key);
     setHeader(`t=${time},v1=${digest}`);
@@ -29,8 +37,7 @@ export function SignaturePanel() {
     setRaw("");
     setHeader("");
     setSecret("");
-    setResult(null);
-    setError("");
+    invalidate();
   }
   return (
     <section aria-labelledby="signature-heading" className="space-y-6">
@@ -61,8 +68,7 @@ export function SignaturePanel() {
           spellCheck={false}
           onChange={(e) => {
             setRaw(e.target.value);
-            setResult(null);
-            setError("");
+            invalidate();
           }}
         />
         <span className="help">
@@ -77,7 +83,7 @@ export function SignaturePanel() {
           value={header}
           onChange={(e) => {
             setHeader(e.target.value);
-            setResult(null);
+            invalidate();
           }}
         />
       </label>
@@ -89,7 +95,7 @@ export function SignaturePanel() {
           value={secret}
           onChange={(e) => {
             setSecret(e.target.value);
-            setResult(null);
+            invalidate();
           }}
         />
         <span className="help">
@@ -101,22 +107,23 @@ export function SignaturePanel() {
           disabled={working}
           className="primary"
           onClick={async () => {
+            const verificationRevision = revision.current;
             setWorking(true);
             setError("");
             setResult(null);
             try {
-              setResult(
-                await verifyStripe(
-                  raw,
-                  header,
-                  secret,
-                  Math.floor(Date.now() / 1000),
-                ),
+              const checked = await verifyStripe(
+                raw,
+                header,
+                secret,
+                Math.floor(Date.now() / 1000),
               );
+              if (verificationRevision === revision.current) setResult(checked);
             } catch (e) {
-              setError(
-                e instanceof Error ? e.message : "Signature check failed.",
-              );
+              if (verificationRevision === revision.current)
+                setError(
+                  e instanceof Error ? e.message : "Signature check failed.",
+                );
             } finally {
               setWorking(false);
             }
@@ -127,6 +134,7 @@ export function SignaturePanel() {
         <button
           className="secondary"
           onClick={() => {
+            invalidate();
             try {
               setRaw(JSON.stringify(JSON.parse(raw)));
               setResult(null);
