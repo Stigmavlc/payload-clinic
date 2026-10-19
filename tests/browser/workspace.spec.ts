@@ -106,6 +106,12 @@ test("signature inputs remain transient and reformatting invalidates the digest"
 }) => {
   await page.goto("./");
   await page.getByRole("tab", { name: "Signature check" }).click();
+  await expect(
+    page.getByRole("link", { name: "Stripe webhook signatures", exact: true }),
+  ).toHaveCSS("text-decoration-line", "underline");
+  await expect(
+    page.getByRole("link", { name: "RFC 4231", exact: true }),
+  ).toHaveCSS("text-decoration-line", "underline");
   await page
     .getByRole("button", { name: "Load signed sample", exact: true })
     .click();
@@ -368,22 +374,20 @@ test("English durations stay consistent when the browser uses Spanish", async ({
       requestBody: "{}",
       responseBody: "",
     };
-    await page
-      .getByLabel("Or paste an incident")
-      .fill(
-        JSON.stringify({
-          title: "English duration format",
-          senderTimeoutMs: 10000,
-          attempts: [
-            attempt,
-            {
-              ...attempt,
-              id: "second",
-              receivedAt: "2026-10-19T10:00:01.500Z",
-            },
-          ],
-        }),
-      );
+    await page.getByLabel("Or paste an incident").fill(
+      JSON.stringify({
+        title: "English duration format",
+        senderTimeoutMs: 10000,
+        attempts: [
+          attempt,
+          {
+            ...attempt,
+            id: "second",
+            receivedAt: "2026-10-19T10:00:01.500Z",
+          },
+        ],
+      }),
+    );
     await page.getByRole("button", { name: "Validate and import" }).click();
     await expect(page.locator(".timeline")).toContainText("10,450 ms");
     await expect(page.locator(".timeline")).toContainText(
