@@ -340,7 +340,12 @@ test("multi-day attempts show dates and readable retry gaps", async ({
       senderTimeoutMs: 1000,
       attempts: [
         attempt,
-        { ...attempt, id: "late", receivedAt: "2026-10-18T10:00:01Z" },
+        {
+          ...attempt,
+          id: "late",
+          receivedAt: "2026-10-18T10:00:01Z",
+          status: null,
+        },
       ],
     }),
   );
@@ -354,7 +359,18 @@ test("multi-day attempts show dates and readable retry gaps", async ({
   await expect(page.locator(".timeline")).toContainText(
     "1 day, 1 second after previous attempt",
   );
+  await expect(
+    page.getByRole("button", { name: /Attempt 2: late/ }),
+  ).toContainText("No response recorded");
   await page.getByRole("tab", { name: "Compare attempts" }).click();
+  await expect(
+    page
+      .getByLabel("Second attempt")
+      .getByRole("option", { name: "Attempt 2: late · No response recorded" }),
+  ).toBeAttached();
+  await expect(
+    page.getByText("503 → No response recorded", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("1 day, 1 second", { exact: true }),
   ).toBeVisible();
