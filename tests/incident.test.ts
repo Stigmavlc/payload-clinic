@@ -18,7 +18,7 @@ const fixture = () => ({
       headers: {
         Authorization: "Bearer private-value",
         "content-type": "application/json",
-      },
+      } as Record<string, string>,
       requestBody:
         '{"id":"evt-booking-47","email":"test@example.com","access_token":"private-value"}',
       responseBody: '{"result":"queued"}',
@@ -318,5 +318,42 @@ it("rejects identifiers that collide after redaction before they can be saved", 
   data.attempts[1].id = "b@example.test";
   expect(() => importIncident(JSON.stringify(data))).toThrow(
     "identical after redaction",
+  );
+});
+
+it("redacts a near-limit email event batch with a shared repeated-value lookup", () => {
+  const data = fixture();
+  const rows = Array.from({ length: 6800 }, (_, i) => ({
+    email: `recipient-${i}@example.test`,
+    event: "delivered",
+    messageId: `message-${i}`,
+    detail: "synthetic delivery record",
+  }));
+  data.attempts[0].requestBody = JSON.stringify(rows);
+  data.attempts[1].responseBody =
+    "Contact recipient-4150@example.test for the record";
+  const text = JSON.stringify(data);
+  expect(text.length).toBeGreaterThan(850000);
+  expect(new TextEncoder().encode(text).length).toBeLessThan(1000000);
+  const started = performance.now();
+  const incident = importIncident(text);
+  const reopened = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  expect(performance.now() - started).toBeLessThan(1500);
+  expect(reopened).toEqual(incident);
+  expect(report(incident)).not.toContain("recipient-4150@example.test");
+});
+it("uses longest whole repeated credentials without changing adjacent longer tokens", () => {
+  const data = fixture();
+  data.attempts[0].headers = {
+    token: "example-token-123",
+    secret: "example-token-123.extra",
+  };
+  data.attempts[0].responseBody =
+    "example-token-123.extra example-token-123 example-token-123-longer";
+  const incident = importIncident(JSON.stringify(data));
+  expect(incident.attempts[1].responseBody).toBe(
+    "[secret removed] [secret removed] example-token-123-longer",
   );
 });

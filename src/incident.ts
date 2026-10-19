@@ -177,6 +177,67 @@ export function importIncident(
         });
       }
     }
+  // A shared trie finds repeated values in one scan of each text field.
+  const nodes: {
+    edges: Map<string, number>;
+    fail: number;
+    lengths: number[];
+  }[] = [{ edges: new Map(), fail: 0, lengths: [] }];
+  for (const secret of knownSecrets) {
+    let state = 0;
+    for (const char of secret.split("")) {
+      let next = nodes[state].edges.get(char);
+      if (next === undefined) {
+        next = nodes.length;
+        nodes[state].edges.set(char, next);
+        nodes.push({ edges: new Map(), fail: 0, lengths: [] });
+      }
+      state = next;
+    }
+    nodes[state].lengths.push(secret.length);
+  }
+  const queue = [...nodes[0].edges.values()];
+  for (let index = 0; index < queue.length; index++) {
+    const state = queue[index];
+    for (const [char, child] of nodes[state].edges) {
+      let fallback = nodes[state].fail;
+      while (fallback && !nodes[fallback].edges.has(char))
+        fallback = nodes[fallback].fail;
+      nodes[child].fail = nodes[fallback].edges.get(char) ?? 0;
+      nodes[child].lengths.push(...nodes[nodes[child].fail].lengths);
+      queue.push(child);
+    }
+  }
+  const repeated = (text: string, path: string): string => {
+    if (!knownSecrets.size) return text;
+    const ends = new Map<number, number>();
+    let state = 0;
+    for (let index = 0; index < text.length; index++) {
+      const char = text[index];
+      while (state && !nodes[state].edges.has(char)) state = nodes[state].fail;
+      state = nodes[state].edges.get(char) ?? 0;
+      for (const length of nodes[state].lengths) {
+        const start = index + 1 - length;
+        if (
+          /[A-Za-z0-9_-]/.test(text[start - 1] ?? "") ||
+          /[A-Za-z0-9_-]/.test(text[index + 1] ?? "")
+        )
+          continue;
+        ends.set(start, Math.max(ends.get(start) ?? 0, index + 1));
+      }
+    }
+    if (!ends.size) return text;
+    const pieces: string[] = [];
+    let cursor = 0;
+    for (const [start, end] of [...ends].sort((a, b) => a[0] - b[0])) {
+      if (start < cursor) continue;
+      pieces.push(text.slice(cursor, start), "[secret removed]");
+      cursor = end;
+    }
+    pieces.push(text.slice(cursor));
+    redactions.add(`${path}: repeated secret`);
+    return pieces.join("");
+  };
   const scrubText = (value: string, path: string, repeat = true): string => {
     let clean = value.replace(email, () => {
       redactions.add(`${path}: email address`);
@@ -205,21 +266,7 @@ export function importIncident(
       redactions.add(`${path}: credential pattern`);
       return "[credential removed]";
     });
-    for (const secret of [...knownSecrets].sort(
-      (a, b) => b.length - a.length,
-    )) {
-      if (!repeat) continue;
-      const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const match = new RegExp(
-        `(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`,
-        "g",
-      );
-      clean = clean.replace(match, () => {
-        redactions.add(`${path}: repeated secret`);
-        return "[secret removed]";
-      });
-    }
-    return clean;
+    return repeat ? repeated(clean, path) : clean;
   };
   const scrub = (value: unknown, path: string): unknown => {
     if (typeof value === "string") return scrubText(value, path);
