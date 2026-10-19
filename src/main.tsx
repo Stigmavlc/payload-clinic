@@ -331,7 +331,7 @@ function App() {
                   </div>
                   <div className="reading">
                     <span className="eyebrow">HTTP status</span>
-                    <strong className="mono">{current.status ?? "—"}</strong>
+                    <strong className="mono">{current.status ?? "No response"}</strong>
                   </div>
                   <div className="reading">
                     <span className="eyebrow">Response duration</span>
