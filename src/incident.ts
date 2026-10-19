@@ -30,8 +30,19 @@ export type Finding = {
 };
 const sensitive =
   /authorization|cookie|signature|token|secret|password|api.?key|email/i;
-const sensitiveField = (key: string): boolean =>
-  sensitive.test(key.replace(/\[(?:email|secret|credential) removed\]/gi, ""));
+const signatureField = (key: string): boolean => {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, "$1-$2");
+  return (
+    /signature/i.test(words) ||
+    /(?:^|[-_.\s])(?:hmac(?:sha[0-9]+)?|sig(?:[0-9]+)?)(?:$|[-_.\s])/i.test(
+      words,
+    )
+  );
+};
+const sensitiveField = (key: string): boolean => {
+  const original = key.replace(/\[(?:email|secret|credential) removed\]/gi, "");
+  return sensitive.test(original) || signatureField(original);
+};
 const email =
   /(?<![A-Z0-9.!#$%&'*+/=?^_`{|}~-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Z0-9-]{1,63}(?:\.[A-Z0-9-]{1,63})+(?![A-Z0-9-])/gi;
 const token =
@@ -382,7 +393,7 @@ export function importIncident(
             const credential = /^(?:Bearer|Basic)\s+(\S+)$/i.exec(v);
             if (credential) remember(credential[1]);
           }
-          if (/signature/i.test(key)) {
+          if (signatureField(key)) {
             for (const match of v.matchAll(
               /(?:^|,)\s*v1=([a-fA-F0-9]{64})(?=,|$)/g,
             ))

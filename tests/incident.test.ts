@@ -986,3 +986,72 @@ it("keeps pretty printed nested JSON as one record during recovery", () => {
   ).toEqual(incident);
   expect(report(incident)).not.toMatch(/synthetic-pretty-100[45]/);
 });
+
+it("removes named HMAC and abbreviated signatures without changing ordinary names", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      headers: {
+        "X-Shopify-Hmac-Sha256": "synthetic-shopify-hmac-1101",
+        "PayPal-Transmission-Sig": "synthetic-paypal-sig-1102",
+        design: "layout",
+        signal: "received",
+        designation: "primary",
+        hmacmachine: "ordinary name",
+      },
+      requestBody: JSON.stringify({
+        sig: "synthetic-json-sig-1103",
+        shopifyHmacSha256: "synthetic-json-hmac-1104",
+        design: "layout",
+        signal: "received",
+        designation: "primary",
+        hmacmachine: "ordinary name",
+      }),
+      responseBody:
+        "hmac_sha256=synthetic-form-hmac-1105&transmissionSig=synthetic-form-sig-1106&design=layout&signal=received",
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].headers).toEqual({
+    "X-Shopify-Hmac-Sha256": "[removed]",
+    "PayPal-Transmission-Sig": "[removed]",
+    design: "layout",
+    signal: "received",
+    designation: "primary",
+    hmacmachine: "ordinary name",
+  });
+  expect(incident.attempts[0].requestBody).toBe(
+    JSON.stringify({
+      sig: "[removed]",
+      shopifyHmacSha256: "[removed]",
+      design: "layout",
+      signal: "received",
+      designation: "primary",
+      hmacmachine: "ordinary name",
+    }),
+  );
+  expect(incident.attempts[0].responseBody).toBe(
+    "hmac_sha256=[removed]&transmissionSig=[removed]&design=layout&signal=received",
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.headers.X-Shopify-Hmac-Sha256: sensitive field",
+    "attempt 1.headers.PayPal-Transmission-Sig: sensitive field",
+    "attempt 1.requestBody.sig: sensitive field",
+    "attempt 1.requestBody.shopifyHmacSha256: sensitive field",
+    "attempt 1.responseBody.hmac_sha256: sensitive form field",
+    "attempt 1.responseBody.transmissionSig: sensitive form field",
+  ]);
+  let reopened = incident;
+  for (let i = 0; i < 2; i++) {
+    reopened = importIncident(JSON.stringify(reopened), {
+      restoreRedactions: true,
+    });
+    expect(reopened).toEqual(incident);
+  }
+  expect(report(reopened)).not.toMatch(
+    /synthetic-(?:shopify|paypal|json|form)-/,
+  );
+  expect(report(reopened)).toContain('"design": "layout"');
+  expect(report(reopened)).toContain('"signal": "received"');
+});
