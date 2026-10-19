@@ -18,11 +18,24 @@ import {
   report,
   responseStatus,
   type Incident,
+  type BodyCheck,
 } from "./incident";
 import { sampleIncident, sampleText, secondSampleText } from "./samples";
 import { SignaturePanel } from "./SignaturePanel";
 import "./style.css";
 const STORAGE = "payload-clinic.incident.v1";
+const bodyBadge = (scope?: BodyCheck): string =>
+  ["text", "unknown"].includes(scope ?? "unknown")
+    ? "Review content"
+    : "Redacted";
+const bodyPanelName = (
+  side: "request" | "response",
+  scope?: BodyCheck,
+): string =>
+  bodyBadge(scope) === "Redacted"
+    ? `Redacted ${side} body`
+    : `${side === "request" ? "Request" : "Response"} body, review content`;
+
 function initial(): { incident: Incident; preserveSaved: boolean } {
   let value: string | null;
   try {
@@ -394,17 +407,19 @@ function App() {
                     <div className="section-title">
                       <h3>Request body</h3>
                       <span className="eyebrow">
-                        {["text", "unknown"].includes(
-                          current.requestChecks ?? "unknown",
-                        )
-                          ? "Review content"
-                          : "Redacted"}
+                        {bodyBadge(current.requestChecks)}
                       </span>
                     </div>
                     <p className="help mb-2">
                       {bodyChecks(current.requestBody, current.requestChecks)}
                     </p>
-                    <pre tabIndex={0} aria-label="Redacted request body">
+                    <pre
+                      tabIndex={0}
+                      aria-label={bodyPanelName(
+                        "request",
+                        current.requestChecks,
+                      )}
+                    >
                       {current.requestBody}
                     </pre>
                   </section>
@@ -412,17 +427,19 @@ function App() {
                     <div className="section-title">
                       <h3>Response body</h3>
                       <span className="eyebrow">
-                        {["text", "unknown"].includes(
-                          current.responseChecks ?? "unknown",
-                        )
-                          ? "Review content"
-                          : "Redacted"}
+                        {bodyBadge(current.responseChecks)}
                       </span>
                     </div>
                     <p className="help mb-2">
                       {bodyChecks(current.responseBody, current.responseChecks)}
                     </p>
-                    <pre tabIndex={0} aria-label="Redacted response body">
+                    <pre
+                      tabIndex={0}
+                      aria-label={bodyPanelName(
+                        "response",
+                        current.responseChecks,
+                      )}
+                    >
                       {current.responseBody || "(empty response body)"}
                     </pre>
                   </section>

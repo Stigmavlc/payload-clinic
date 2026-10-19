@@ -12,6 +12,12 @@ test("sample timeline, comparison and report contain useful evidence", async ({
   expect(await icon.text()).toContain("<svg");
   await page.getByRole("button", { name: /delivery-7b/ }).click();
   await expect(
+    page.getByLabel("Redacted request body", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Redacted response body", { exact: true }),
+  ).toBeVisible();
+  await expect(
     page.getByText("Response reached the sender’s time limit", { exact: true }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "Compare attempts" }).click();
@@ -846,7 +852,7 @@ test("body check labels retain the original form and unsupported field scopes ac
           durationMs: 20,
           headers: {},
           requestBody,
-          responseBody: "",
+          responseBody: requestBody,
         })),
       ],
     }),
@@ -877,10 +883,19 @@ test("body check labels retain the original form and unsupported field scopes ac
           "Text patterns only; this body has no JSON or form field checks.",
           { exact: true },
         ),
-      ).toBeVisible();
+      ).toHaveCount(2);
+      await expect(
+        page.getByLabel("Request body, review content", { exact: true }),
+      ).toHaveText(plainBodies[index]);
+      await expect(
+        page.getByLabel("Response body, review content", { exact: true }),
+      ).toHaveText(plainBodies[index]);
       await expect(
         page.getByLabel("Redacted request body", { exact: true }),
-      ).toHaveText(plainBodies[index]);
+      ).toHaveCount(0);
+      await expect(
+        page.getByLabel("Redacted response body", { exact: true }),
+      ).toHaveCount(0);
       if (cycle === 2)
         await page.screenshot({
           path: test.info().outputPath(`text-check-scope-${index + 1}.png`),
@@ -902,6 +917,6 @@ test("body check labels retain the original form and unsupported field scopes ac
   for await (const chunk of (await download.createReadStream())!)
     output += chunk;
   expect(output).toContain("Form fields and text patterns checked.");
-  expect(output.match(/Text patterns only/g)).toHaveLength(2);
+  expect(output.match(/Text patterns only/g)).toHaveLength(4);
   expect(output).not.toMatch(/jane|synthetic-form-973|JSON-like/);
 });
