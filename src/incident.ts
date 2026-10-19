@@ -279,11 +279,23 @@ export function importIncident(
     });
     return repeat ? repeated(clean, path) : clean;
   };
-  const fieldName = (key: string, path: string, used: Set<string>): string => {
+  const fieldNames = () => ({
+    aliases: new Map<string, string>(),
+    used: new Set<string>(),
+  });
+  const fieldName = (
+    key: string,
+    path: string,
+    names: ReturnType<typeof fieldNames>,
+  ): string => {
+    const existing = names.aliases.get(key);
+    if (existing !== undefined) return existing;
     const base = scrubText(key, `${path}.field name`, false);
     let safe = base;
-    for (let number = 2; used.has(safe); number++) safe = `${base} [${number}]`;
-    used.add(safe);
+    for (let number = 2; names.used.has(safe); number++)
+      safe = `${base} [${number}]`;
+    names.used.add(safe);
+    names.aliases.set(key, safe);
     return safe;
   };
   const scrub = (value: unknown, path: string): unknown => {
@@ -291,7 +303,7 @@ export function importIncident(
     if (Array.isArray(value))
       return value.map((v, i) => scrub(v, `${path}[${i}]`));
     if (isRecord(value)) {
-      const used = new Set<string>();
+      const used = fieldNames();
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => {
           const safeKey = fieldName(k, path, used);
@@ -318,7 +330,7 @@ export function importIncident(
             .replace(/%5D/gi, "]")
             .replace(/%20/g, " ");
         const names = new Map<string, string>();
-        const used = new Set<string>();
+        const used = fieldNames();
         return value
           .split("&")
           .map((part) => {
@@ -379,7 +391,7 @@ export function importIncident(
             patches.push({ ...item, replacement: JSON.stringify(clean) });
         }
       } else if (char === "{") {
-        const used = new Set<string>();
+        const used = fieldNames();
         cursor++;
         whitespace();
         while (value[cursor] !== "}") {

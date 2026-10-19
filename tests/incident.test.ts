@@ -37,6 +37,32 @@ const fixture = () => ({
     },
   ],
 });
+it("retains repeated JSON names and their exact redaction log across two reopens", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      requestBody: '{"status":"ok","status":"failed","amount":10.50}',
+      responseBody: '{"token":"a","token":"b"}',
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(source.attempts[0].requestBody);
+  expect(incident.attempts[0].responseBody).toBe(
+    '{"token":"[removed]","token":"[removed]"}',
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.responseBody.token: sensitive field",
+  ]);
+  const first = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  const second = importIncident(JSON.stringify(first), {
+    restoreRedactions: true,
+  });
+  expect(first).toEqual(incident);
+  expect(second).toEqual(incident);
+});
 it("uses the same missing response label in comparisons and reports", () => {
   const incident = importIncident(JSON.stringify(fixture()));
   incident.attempts[1].status = null;
