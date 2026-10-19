@@ -155,7 +155,7 @@ function looseFields(value: string): LooseField[] {
             } else {
               while (
                 base + end < value.length &&
-                !/[,}\]\r\n]/.test(value[base + end])
+                !/[,}\]]/.test(value[base + end])
               ) {
                 if (
                   value[base + end] === "/" &&
@@ -363,11 +363,16 @@ export function importIncident(
         });
         if (looksLikeJSON(body))
           for (const field of looseFields(body)) {
-            if (
-              sensitiveField(field.key) &&
-              typeof field.node?.value === "string"
-            )
-              remember(field.node.value);
+            if (sensitiveField(field.key) && !emptyLooseField(field, body)) {
+              if (typeof field.node?.value === "string")
+                remember(field.node.value);
+              else {
+                const recorded = body.slice(field.start, field.end).trim();
+                remember(recorded);
+                if (recorded.startsWith("'") && recorded.endsWith("'"))
+                  remember(recorded.slice(1, -1).replace(/\\(['\\])/g, "$1"));
+              }
+            }
           }
       }
     }

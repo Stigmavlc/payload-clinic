@@ -755,6 +755,7 @@ it.each([
   "NaN",
   "'synthetic-single-951'",
   "correct horse battery staple",
+  "correct horse\nbattery staple",
   "'synthetic, comma 952'",
 ])(
   "retains invalid JSON evidence while removing the whole sensitive value %j",
@@ -874,3 +875,31 @@ it("ignores imported check claims and labels older saved scope as unknown", () =
   expect(restored.attempts[0].requestChecks).toBe("unknown");
   expect(report(restored)).toContain("Original check scope was not saved");
 });
+
+it.each(["synthetic-bare-credential-984", "'synthetic-quoted-credential-985'"])(
+  "also removes repeated credentials collected from malformed values %j",
+  (raw) => {
+    const source = fixture();
+    const credential = raw.replace(/^'|'$/g, "");
+    source.attempts = [
+      {
+        ...source.attempts[1],
+        requestBody: `{"token": ${raw}}`,
+        responseBody: `Rejected ${credential}.`,
+      },
+    ];
+    const imported = importIncident(JSON.stringify(source));
+    expect(imported.attempts[0].requestBody).toBe('{"token": [removed]}');
+    expect(imported.attempts[0].responseBody).toBe(
+      "Rejected [secret removed].",
+    );
+    let reopened = imported;
+    for (let i = 0; i < 3; i++) {
+      expect(reopened).toEqual(imported);
+      expect(report(reopened)).not.toContain(credential);
+      reopened = importIncident(JSON.stringify(reopened), {
+        restoreRedactions: true,
+      });
+    }
+  },
+);
