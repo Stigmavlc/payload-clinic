@@ -37,6 +37,35 @@ const fixture = () => ({
     },
   ],
 });
+it("keeps missing, boolean and empty sensitive values with no invented removals", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      headers: { Authorization: "", "content-type": "application/json" },
+      requestBody:
+        '{ "receipt_email":null, "email_verified":false, "has_signature":true, "token":"", "total_tokens":42 }',
+      responseBody: "email=&token=&qty=2",
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(
+    '{ "receipt_email":null, "email_verified":false, "has_signature":true, "token":"", "total_tokens":"[removed]" }',
+  );
+  expect(incident.attempts[0].responseBody).toBe(
+    source.attempts[0].responseBody,
+  );
+  expect(incident.attempts[0].headers).toEqual(source.attempts[0].headers);
+  expect(incident.redactions).toEqual([
+    "attempt 1.requestBody.total_tokens: sensitive field",
+  ]);
+  const reopened = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  expect(reopened).toEqual(incident);
+  expect(report(reopened)).toContain('"receipt_email":null');
+  expect(report(reopened)).toContain("email=&token=&qty=2");
+});
 it("retains repeated JSON names and their exact redaction log across two reopens", () => {
   const source = fixture();
   source.attempts = [

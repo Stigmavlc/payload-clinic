@@ -307,7 +307,12 @@ export function importIncident(
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => {
           const safeKey = fieldName(k, path, used);
-          if (sensitiveField(k)) {
+          if (
+            sensitiveField(k) &&
+            v !== null &&
+            typeof v !== "boolean" &&
+            v !== ""
+          ) {
             if (v !== "[removed]")
               redactions.add(`${path}.${safeKey}: sensitive field`);
             return [safeKey, "[removed]"];
@@ -343,7 +348,7 @@ export function importIncident(
             const safeKey = names.get(key) ?? fieldName(key, path, used);
             names.set(key, safeKey);
             let safeValue: string;
-            if (sensitiveField(key)) {
+            if (sensitiveField(key) && v !== "") {
               if (v !== "[removed]")
                 redactions.add(`${path}.${safeKey}: sensitive form field`);
               safeValue = "[removed]";
@@ -407,7 +412,9 @@ export function importIncident(
           const start = cursor;
           const remove = apply && sensitiveField(key.decoded);
           visit(`${currentPath}.${safeKey}`, apply && !remove, depth + 1);
-          if (remove) {
+          const recorded = value.slice(start, cursor);
+          const keepEmpty = ["null", "true", "false", '""'].includes(recorded);
+          if (remove && !keepEmpty) {
             if (value.slice(start, cursor) !== '"[removed]"')
               redactions.add(`${currentPath}.${safeKey}: sensitive field`);
             patches.push({ start, end: cursor, replacement: '"[removed]"' });
