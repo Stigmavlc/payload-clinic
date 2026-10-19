@@ -48,6 +48,17 @@ test("invalid input stays open with an actionable error and valid import is reda
             '{"email":"sample@example.test","secret":"topsecret-48"}',
           responseBody: "topsecret-48",
         },
+        {
+          id: "attempt-49",
+          eventId: "evt-48",
+          receivedAt: "2026-10-18T14:01:00Z",
+          status: 200,
+          durationMs: 80,
+          headers: {},
+          requestBody:
+            "token=second-secret-49&quantity=3&note=second-secret-49",
+          responseBody: '{"password":"third-secret-49","amount":10.50}',
+        },
       ],
     }),
   );
@@ -59,6 +70,8 @@ test("invalid input stays open with an actionable error and valid import is reda
   const saved = await page.evaluate(() => JSON.stringify(localStorage));
   expect(saved).not.toContain("topsecret-48");
   expect(saved).not.toContain("sample@example.test");
+  expect(saved).not.toContain("second-secret-49");
+  expect(saved).not.toContain("third-secret-49");
   await page.getByText("Headers and redaction log").click();
   const originalLog = await page
     .locator(".redaction-list li")

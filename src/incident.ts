@@ -226,9 +226,10 @@ export function importIncident(
       return Object.fromEntries(
         Object.entries(value).map(([k, v]) => {
           if (sensitive.test(k)) {
-            redactions.add(
-              `${path}.${scrubText(k, path, false)}: sensitive field`,
-            );
+            if (v !== "[removed]")
+              redactions.add(
+                `${path}.${scrubText(k, path, false)}: sensitive field`,
+              );
             return [scrubText(k, path, false), "[removed]"];
           }
           return [
@@ -249,7 +250,8 @@ export function importIncident(
         fields.forEach((v, key) => {
           const safeKey = scrubText(key, path, false);
           if (sensitive.test(key)) {
-            redactions.add(`${path}.${safeKey}: sensitive form field`);
+            if (v !== "[removed]")
+              redactions.add(`${path}.${safeKey}: sensitive form field`);
             clean.append(safeKey, "[removed]");
           } else clean.append(safeKey, scrubText(v, `${path}.${safeKey}`));
         });
@@ -305,7 +307,8 @@ export function importIncident(
           const remove = apply && sensitive.test(key.decoded);
           visit(`${currentPath}.${safeKey}`, apply && !remove, depth + 1);
           if (remove) {
-            redactions.add(`${currentPath}.${safeKey}: sensitive field`);
+            if (value.slice(start, cursor) !== '"[removed]"')
+              redactions.add(`${currentPath}.${safeKey}: sensitive field`);
             patches.push({ start, end: cursor, replacement: '"[removed]"' });
           }
           whitespace();
@@ -353,17 +356,17 @@ export function importIncident(
       responseBody: body(a.responseBody, `attempt ${i + 1}.responseBody`),
     }))
     .sort((a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt));
-  if (options.restoreRedactions && Array.isArray(input.redactions)) {
-    for (const entry of input.redactions.slice(0, 10000)) {
+  const title = scrubText(input.title, "title");
+  const restoredLog: string[] = [];
+  if (options.restoreRedactions && Array.isArray(input.redactions))
+    for (const entry of input.redactions.slice(0, 10000))
       if (typeof entry === "string" && entry.length <= 1000)
-        redactions.add(scrubText(entry, "saved redaction log"));
-    }
-  }
+        restoredLog.push(scrubText(entry, "saved redaction log"));
   return {
-    title: scrubText(input.title, "title"),
+    title,
     senderTimeoutMs: input.senderTimeoutMs,
     attempts,
-    redactions: [...redactions],
+    redactions: [...new Set([...restoredLog, ...redactions])],
   };
 }
 

@@ -270,3 +270,20 @@ it("redacts nested and escaped JSON string tokens without normalising surroundin
     JSON.parse(data.attempts[0].requestBody).items[0].note,
   );
 });
+
+it("keeps the original redaction log order for multiple attempts and sensitive form fields on reload", () => {
+  const data = fixture();
+  data.title = "Email person@example.test";
+  data.attempts[1].requestBody =
+    "token=second-secret-7364&quantity=3&note=second-secret-7364";
+  const incident = importIncident(JSON.stringify(data));
+  const reopened = importIncident(JSON.stringify(incident), {
+    restoreRedactions: true,
+  });
+  const reopenedAgain = importIncident(JSON.stringify(reopened), {
+    restoreRedactions: true,
+  });
+  expect(reopened.redactions).toEqual(incident.redactions);
+  expect(reopenedAgain).toEqual(reopened);
+  expect(reopened.attempts).toEqual(incident.attempts);
+});
