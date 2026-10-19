@@ -651,9 +651,7 @@ export function report(incident: Incident): string {
       fenced(a.requestBody),
       "",
       "Response:",
-      a.responseBody === ""
-        ? "No response body recorded"
-        : fenced(a.responseBody),
+      fenced(a.responseBody || "(empty response body)"),
       "",
     ]),
     "## Redactions",
