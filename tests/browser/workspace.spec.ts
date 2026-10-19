@@ -150,3 +150,27 @@ test("import dialog traps keyboard focus, closes on Escape and restores the trig
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(trigger).toBeFocused();
 });
+
+test("expired signatures show a rejected timestamp before the matching digest", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await page.getByRole("tab", { name: "Signature check" }).click();
+  await page
+    .getByRole("button", { name: "Load expired sample", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Verify signature", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Timestamp outside tolerance",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".result")).toHaveClass(/error/);
+  await expect(page.locator(".result")).toContainText(/seconds ago/);
+  await expect(page.locator(".result")).toContainText(
+    "Digest comparison: matches",
+  );
+});

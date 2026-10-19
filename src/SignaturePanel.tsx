@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LockClosedIcon } from "@radix-ui/react-icons";
-import { hmacSha256, verifyStripe } from "./signature";
+import { hmacSha256, timestampAge, verifyStripe } from "./signature";
 
 export function SignaturePanel() {
   const [raw, setRaw] = useState("");
@@ -150,21 +150,27 @@ export function SignaturePanel() {
       <div aria-live="polite">
         {error && <p className="error">{error}</p>}
         {result && (
-          <div className="result">
+          <div
+            className={`result ${!result.fresh || !result.matches ? "error" : ""}`}
+          >
             <h3>
-              {result.matches
-                ? "Signature matches"
-                : "Signature does not match"}
+              {!result.fresh
+                ? "Timestamp outside tolerance"
+                : result.matches
+                  ? "Signature matches"
+                  : "Signature does not match"}
             </h3>
             <p>
               {result.fresh
                 ? "Timestamp is within the 300 second tolerance."
-                : `Timestamp is outside the 300 second tolerance (${Math.abs(result.ageSeconds)} seconds from now).`}
+                : `Timestamp is outside the 300 second tolerance (${timestampAge(result.ageSeconds)}).`}
             </p>
             <p className="help mt-2">
-              A matching digest with an expired timestamp is not a valid fresh
-              delivery. This is a diagnostic check, not a production webhook
-              receiver.
+              Digest comparison:{" "}
+              {result.matches
+                ? "matches the supplied bytes and key"
+                : "does not match the supplied bytes and key"}
+              .
             </p>
           </div>
         )}

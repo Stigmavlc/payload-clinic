@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { hmacSha256, verifyStripe } from "../src/signature";
+import { hmacSha256, timestampAge, verifyStripe } from "../src/signature";
 it("matches RFC 4231 HMAC-SHA-256 test case 1", async () => {
   expect(await hmacSha256(new Uint8Array(20).fill(0x0b), "Hi There")).toBe(
     "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
@@ -30,4 +30,10 @@ it("rejects ambiguous timestamps and missing signatures", async () => {
     "exactly one",
   );
   await expect(verifyStripe("{}", "t=1", "key", 1)).rejects.toThrow("v1");
+});
+
+it("describes past and future signature timestamps accurately", () => {
+  expect(timestampAge(902)).toBe("902 seconds ago");
+  expect(timestampAge(-902)).toBe("902 seconds ahead of the current time");
+  expect(timestampAge(0)).toBe("at the current time");
 });

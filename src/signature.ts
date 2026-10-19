@@ -56,3 +56,8 @@ export async function verifyStripe(
     ageSeconds: nowSeconds - timestamp,
   };
 }
+
+export function timestampAge(ageSeconds: number): string {
+  if (ageSeconds === 0) return "at the current time";
+  return `${Math.abs(ageSeconds)} seconds ${ageSeconds > 0 ? "ago" : "ahead of the current time"}`;
+}
