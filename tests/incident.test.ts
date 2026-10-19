@@ -5,6 +5,7 @@ import {
   formatGap,
   importIncident,
   report,
+  responseStatus,
 } from "../src/incident";
 const fixture = () => ({
   title: "Booking confirmation delivery",
@@ -35,6 +36,15 @@ const fixture = () => ({
       responseBody: "Service unavailable",
     },
   ],
+});
+it("uses the same missing response label in comparisons and reports", () => {
+  const incident = importIncident(JSON.stringify(fixture()));
+  incident.attempts[1].status = null;
+  expect(responseStatus(null)).toBe("No response recorded");
+  expect(
+    compareAttempts(incident.attempts[0], incident.attempts[1]).status,
+  ).toBe("503 → No response recorded");
+  expect(report(incident)).toContain("Status: No response recorded;");
 });
 it("rejects different Message-ID events that merge but preserves genuine repeats", () => {
   const source = fixture();

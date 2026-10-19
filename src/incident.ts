@@ -571,12 +571,16 @@ export function formatGap(milliseconds: number): string {
   return `${milliseconds < 0 ? "minus " : ""}${parts.join(", ")}`;
 }
 
+export function responseStatus(status: number | null): string {
+  return status === null ? "No response recorded" : String(status);
+}
+
 export function compareAttempts(left: Attempt, right: Attempt) {
   return {
     gapMs: Date.parse(right.receivedAt) - Date.parse(left.receivedAt),
     sameEvent: left.eventId === right.eventId,
     sameBody: left.requestBody === right.requestBody,
-    status: `${left.status ?? "none"} → ${right.status ?? "none"}`,
+    status: `${responseStatus(left.status)} → ${responseStatus(right.status)}`,
     durationChangeMs: right.durationMs - left.durationMs,
   };
 }
@@ -613,7 +617,7 @@ export function report(incident: Incident): string {
             `Gap from previous attempt: ${formatGap(Date.parse(a.receivedAt) - Date.parse(incident.attempts[i - 1].receivedAt))}`,
           ]
         : []),
-      `Status: ${a.status ?? "not recorded"}; duration: ${a.durationMs} ms`,
+      `Status: ${responseStatus(a.status)}; duration: ${a.durationMs} ms`,
       ...findings(incident, a).map(
         (f) =>
           `${f.kind === "observed" ? "Observed" : "Check"}: ${f.title}. ${f.detail}`,

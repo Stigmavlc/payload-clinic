@@ -14,6 +14,7 @@ import {
   formatGap,
   importIncident,
   report,
+  responseStatus,
   type Incident,
 } from "./incident";
 import { sampleIncident, sampleText, secondSampleText } from "./samples";
@@ -223,10 +224,12 @@ function App() {
                     <span
                       className={`status status-${a.status === null ? "none" : Math.floor(a.status / 100)}`}
                     >
-                      {a.status ?? "No response"}
+                      {responseStatus(a.status)}
                     </span>
                   </div>
-                  <strong>{a.id}</strong>
+                  <strong>
+                    Attempt {i + 1}: {a.id}
+                  </strong>
                   <div className="flex justify-between text-xs muted">
                     <span>{a.eventId}</span>
                     <span className="mono">
@@ -349,7 +352,7 @@ function App() {
                   <div className="reading">
                     <span className="eyebrow">HTTP status</span>
                     <strong className="mono">
-                      {current.status ?? "No response"}
+                      {responseStatus(current.status)}
                     </strong>
                   </div>
                   <div className="reading">
@@ -437,7 +440,7 @@ function App() {
                   >
                     {incident.attempts.map((a, i) => (
                       <option key={a.id} value={i}>
-                        {a.id} · {a.status ?? "no response"}
+                        Attempt {i + 1}: {a.id} · {responseStatus(a.status)}
                       </option>
                     ))}
                   </select>
