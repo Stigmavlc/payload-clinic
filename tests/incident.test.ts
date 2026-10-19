@@ -99,7 +99,7 @@ it("exports kept and removed headers and labels an absent response body", () => 
   expect(output).toContain('"content-type": "application/json"');
   expect(output).toContain('"Authorization": "[removed]"');
   expect(output).toContain("No headers recorded");
-  expect(output).toContain("Response:\nNo response body recorded");
+  expect(output).toContain("(empty response body)");
   expect(output).not.toContain("private-value");
 });
 it("uses the same missing response label in comparisons and reports", () => {
