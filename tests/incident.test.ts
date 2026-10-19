@@ -185,7 +185,7 @@ it("retains ordinary Basic and Bearer phrases as investigation evidence", () => 
   data.attempts[0].headers = {};
   data.attempts[0].requestBody = '{"plan":"Basic monthly"}';
   data.attempts[0].responseBody =
-    'Bearer token expired. Basic authentication required. The bearer of this order. WWW-Authenticate: Basic realm="example"';
+    'Bearer token expired. Basic authentication required. The bearer of this order. WWW-Authenticate: Basic realm="example". This endpoint requires Bearer authentication. Expected Bearer authorization. Invalid Bearer credentials. Bearer authentication/JWT';
   const incident = importIncident(JSON.stringify(data));
   expect(incident.title).toBe(data.title);
   expect(JSON.parse(incident.attempts[1].requestBody).plan).toBe(
@@ -355,5 +355,13 @@ it("uses longest whole repeated credentials without changing adjacent longer tok
   const incident = importIncident(JSON.stringify(data));
   expect(incident.attempts[1].responseBody).toBe(
     "[secret removed] [secret removed] example-token-123-longer",
+  );
+});
+
+it("keeps sentence punctuation after removing a recognised Bearer credential", () => {
+  const data = fixture();
+  data.attempts[0].responseBody = "Rejected Bearer synthetic-credential-82364.";
+  expect(importIncident(JSON.stringify(data)).attempts[1].responseBody).toBe(
+    "Rejected Bearer [credential removed].",
   );
 });

@@ -246,20 +246,28 @@ export function importIncident(
     clean = clean.replace(
       authorizationText,
       (match, scheme: string, value: string) => {
-        let recognised = credentialLike(value);
+        const candidate = value.replace(/\.+$/, "");
+        const suffix = value.slice(candidate.length);
+        let recognised =
+          credentialLike(candidate) &&
+          (/[0-9]/.test(candidate) ||
+            (candidate.length >= 24 &&
+              /[._~+/-]/.test(candidate) &&
+              /[a-z]/.test(candidate) &&
+              /[A-Z]/.test(candidate)));
         if (scheme.toLowerCase() === "basic") {
           try {
             recognised =
-              value.length >= 12 &&
-              /^[A-Za-z0-9+/]+={0,2}$/.test(value) &&
-              atob(value).includes(":");
+              candidate.length >= 12 &&
+              /^[A-Za-z0-9+/]+={0,2}$/.test(candidate) &&
+              atob(candidate).includes(":");
           } catch {
             recognised = false;
           }
         }
         if (!recognised) return match;
         redactions.add(`${path}: credential pattern`);
-        return `${scheme} [credential removed]`;
+        return `${scheme} [credential removed]${suffix}`;
       },
     );
     clean = clean.replace(token, () => {
