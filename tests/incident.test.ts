@@ -903,3 +903,86 @@ it.each(["synthetic-bare-credential-984", "'synthetic-quoted-credential-985'"])(
     }
   },
 );
+
+it.each([
+  '{"id":"e1","note":"card declined, message cut',
+  '{"id":"e1",',
+  '{"id":"e1","no',
+  '{"id":"e1","amount":12',
+])("redacts new records following a cut off line %j", (prefix) => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      responseBody: "",
+      requestBody:
+        prefix +
+        '\n{"token":"synthetic-next-1001","id":"e2"}\n{"token":"synthetic-next-1002","id":"e3"}',
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(
+    prefix + '\n{"token":[removed],"id":"e2"}\n{"token":[removed],"id":"e3"}',
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.requestBody[1].token: sensitive field",
+    "attempt 1.requestBody[2].token: sensitive field",
+  ]);
+  let reopened = incident;
+  for (let i = 0; i < 2; i++) {
+    reopened = importIncident(JSON.stringify(reopened), {
+      restoreRedactions: true,
+    });
+    expect(reopened).toEqual(incident);
+  }
+  expect(report(reopened)).not.toMatch(/synthetic-next-100[12]/);
+});
+it("finds a first nested field after a cut off record", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      responseBody: "",
+      requestBody:
+        '{"id":"e1","note":"cut\n{"auth":{"token":"synthetic-nested-1003"},"id":"e2"}',
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(
+    '{"id":"e1","note":"cut\n{"auth":{"token":[removed]},"id":"e2"}',
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.requestBody[1].auth.token: sensitive field",
+  ]);
+  let reopened = incident;
+  for (let i = 0; i < 2; i++) {
+    reopened = importIncident(JSON.stringify(reopened), {
+      restoreRedactions: true,
+    });
+    expect(reopened).toEqual(incident);
+  }
+  expect(report(reopened)).not.toContain("synthetic-nested-1003");
+});
+it("keeps pretty printed nested JSON as one record during recovery", () => {
+  const source = fixture();
+  source.attempts = [
+    {
+      ...source.attempts[1],
+      responseBody: "",
+      requestBody:
+        '{\n"data": [\n{"token":"synthetic-pretty-1004"},\n{"auth":\n{"token":"synthetic-pretty-1005"}}\n],\n}',
+    },
+  ];
+  const incident = importIncident(JSON.stringify(source));
+  expect(incident.attempts[0].requestBody).toBe(
+    '{\n"data": [\n{"token":[removed]},\n{"auth":\n{"token":[removed]}}\n],\n}',
+  );
+  expect(incident.redactions).toEqual([
+    "attempt 1.requestBody.data[0].token: sensitive field",
+    "attempt 1.requestBody.data[1].auth.token: sensitive field",
+  ]);
+  expect(
+    importIncident(JSON.stringify(incident), { restoreRedactions: true }),
+  ).toEqual(incident);
+  expect(report(incident)).not.toMatch(/synthetic-pretty-100[45]/);
+});

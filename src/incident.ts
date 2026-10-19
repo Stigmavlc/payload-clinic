@@ -97,96 +97,138 @@ type LooseField = {
   end: number;
   node?: Node;
 };
+function recoveredRecordStarts(value: string): number[] {
+  const scanner = createScanner(value, true);
+  const starts: number[] = [];
+  const stack: number[] = [];
+  let previous: number | undefined;
+  let previousEnd = 0;
+  let kind: number;
+  while ((kind = scanner.scan()) !== tokenKinds.EOF) {
+    const offset = scanner.getTokenOffset();
+    const opens =
+      kind === tokenKinds.OpenBraceToken ||
+      kind === tokenKinds.OpenBracketToken;
+    if (opens) {
+      const acceptsValue =
+        previous === tokenKinds.ColonToken ||
+        previous === tokenKinds.OpenBracketToken ||
+        (previous === tokenKinds.CommaToken &&
+          stack.at(-1) === tokenKinds.OpenBracketToken);
+      const beginsLine = /[\r\n]/.test(value.slice(previousEnd, offset));
+      if (!stack.length || (beginsLine && !acceptsValue)) {
+        starts.push(offset);
+        stack.length = 0;
+      }
+      stack.push(kind);
+    } else if (
+      kind === tokenKinds.CloseBraceToken ||
+      kind === tokenKinds.CloseBracketToken
+    ) {
+      stack.pop();
+    }
+    previous = kind;
+    previousEnd = offset + scanner.getTokenLength();
+  }
+  return starts;
+}
 function looseFields(value: string): LooseField[] {
   const fields: LooseField[] = [];
-  let base = 0;
   let records = 0;
-  while (base < value.length) {
-    const scanner = createScanner(value, true);
-    scanner.setPosition(base);
-    let kind = scanner.scan();
-    while (
-      ![
-        tokenKinds.OpenBraceToken,
-        tokenKinds.OpenBracketToken,
-        tokenKinds.EOF,
-      ].includes(kind)
-    )
-      kind = scanner.scan();
-    if (kind === tokenKinds.EOF) break;
-    base = scanner.getTokenOffset();
-    const record = records++;
-    const tree = parseTree(value.slice(base), [], { allowTrailingComma: true });
-    if (!tree) {
-      base++;
-      continue;
-    }
-    const walk = (node: Node, depth = 0): void => {
-      if (depth > 40) throw new Error("The JSON sample is nested too deeply.");
-      if (
-        node.type === "property" &&
-        node.children?.[0] &&
-        typeof node.colonOffset === "number"
-      ) {
-        const child = node.children[1];
-        let start = child?.offset ?? node.colonOffset + 1;
-        let end = child ? child.offset + child.length : start;
-        if (!child) {
-          const scanner = createScanner(value.slice(base), true);
-          scanner.setPosition(start);
-          const token = scanner.scan();
-          start = scanner.getTokenOffset();
-          if (
-            ![
-              tokenKinds.CloseBraceToken,
-              tokenKinds.CloseBracketToken,
-              tokenKinds.CommaToken,
-              tokenKinds.EOF,
-            ].includes(token)
-          ) {
-            end = start;
-            if (value[base + start] === "'") {
-              end++;
-              while (base + end < value.length) {
-                const character = value[base + end++];
-                if (character === "\\") end++;
-                else if (character === "'") break;
-              }
-            } else {
-              while (
-                base + end < value.length &&
-                !/[,}\]]/.test(value[base + end])
-              ) {
-                if (
-                  value[base + end] === "/" &&
-                  /[/*]/.test(value[base + end + 1] ?? "")
-                )
-                  break;
-                end++;
-              }
-              while (end > start && /\s/.test(value[base + end - 1])) end--;
-            }
-          } else end = start;
-        }
-        fields.push({
-          key: node.children[0].value as string,
-          path: [
-            record,
-            ...getNodePath(node.children[0])
-              .slice(0, -1)
-              .concat(node.children[0].value),
-          ],
-          start: base + start,
-          end: base + end,
-          node: child,
-        });
+  const starts = recoveredRecordStarts(value);
+  for (let index = 0; index < starts.length; index++) {
+    let base = starts[index];
+    const limit = starts[index + 1] ?? value.length;
+    while (base < limit) {
+      const scanner = createScanner(value.slice(0, limit), true);
+      scanner.setPosition(base);
+      let kind = scanner.scan();
+      while (
+        ![
+          tokenKinds.OpenBraceToken,
+          tokenKinds.OpenBracketToken,
+          tokenKinds.EOF,
+        ].includes(kind)
+      )
+        kind = scanner.scan();
+      if (kind === tokenKinds.EOF) break;
+      base = scanner.getTokenOffset();
+      const record = records++;
+      const tree = parseTree(value.slice(base, limit), [], {
+        allowTrailingComma: true,
+      });
+      if (!tree) {
+        base++;
+        continue;
       }
-      node.children?.forEach((child) => walk(child, depth + 1));
-    };
-    walk(tree);
-    const next = base + tree.offset + tree.length;
-    if (next <= base) break;
-    base = next;
+      const walk = (node: Node, depth = 0): void => {
+        if (depth > 40)
+          throw new Error("The JSON sample is nested too deeply.");
+        if (
+          node.type === "property" &&
+          node.children?.[0] &&
+          typeof node.colonOffset === "number"
+        ) {
+          const child = node.children[1];
+          let start = child?.offset ?? node.colonOffset + 1;
+          let end = child ? child.offset + child.length : start;
+          if (!child) {
+            const scanner = createScanner(value.slice(base, limit), true);
+            scanner.setPosition(start);
+            const token = scanner.scan();
+            start = scanner.getTokenOffset();
+            if (
+              ![
+                tokenKinds.CloseBraceToken,
+                tokenKinds.CloseBracketToken,
+                tokenKinds.CommaToken,
+                tokenKinds.EOF,
+              ].includes(token)
+            ) {
+              end = start;
+              if (value[base + start] === "'") {
+                end++;
+                while (base + end < limit) {
+                  const character = value[base + end++];
+                  if (character === "\\") end++;
+                  else if (character === "'") break;
+                }
+              } else {
+                while (
+                  base + end < limit &&
+                  !/[,}\]]/.test(value[base + end])
+                ) {
+                  if (
+                    value[base + end] === "/" &&
+                    /[/*]/.test(value[base + end + 1] ?? "")
+                  )
+                    break;
+                  end++;
+                }
+                while (end > start && /\s/.test(value[base + end - 1])) end--;
+              }
+            } else end = start;
+          }
+          fields.push({
+            key: node.children[0].value as string,
+            path: [
+              record,
+              ...getNodePath(node.children[0])
+                .slice(0, -1)
+                .concat(node.children[0].value),
+            ],
+            start: base + start,
+            end: base + end,
+            node: child,
+          });
+        }
+        node.children?.forEach((child) => walk(child, depth + 1));
+      };
+      walk(tree);
+      const next = base + tree.offset + tree.length;
+      if (next <= base) break;
+      base = next;
+    }
   }
   if (records === 1) fields.forEach((field) => field.path.shift());
   return fields.sort((a, b) => a.start - b.start || b.end - a.end);

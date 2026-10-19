@@ -88,6 +88,17 @@ test("invalid input stays open with an actionable error and valid import is reda
           responseBody:
             '{"password":"third-secret-49"},\n{"token":"fourth-secret-49"}',
         },
+        {
+          id: "attempt-50",
+          eventId: "evt-50",
+          receivedAt: "2026-10-18T14:02:00Z",
+          status: 400,
+          durationMs: 20,
+          headers: {},
+          requestBody:
+            '{"id":"e1","note":"cut\n{"token":"synthetic-cut-next-1006"}\n{"auth":{"token":"synthetic-cut-next-1007"}}',
+          responseBody: "",
+        },
       ],
     }),
   );
@@ -102,6 +113,7 @@ test("invalid input stays open with an actionable error and valid import is reda
   expect(saved).not.toContain("second-secret-49");
   expect(saved).not.toContain("third-secret-49");
   expect(saved).not.toContain("fourth-secret-49");
+  expect(saved).not.toMatch(/synthetic-cut-next-100[67]/);
   await page.getByText("Headers and redaction log").click();
   const originalSaved = await page.evaluate(() =>
     localStorage.getItem("payload-clinic.incident.v1"),
@@ -124,6 +136,30 @@ test("invalid input stays open with an actionable error and valid import is reda
   await expect(
     page.getByRole("heading", { name: "Imported incident" }),
   ).toBeVisible();
+  await page.reload();
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("payload-clinic.incident.v1"),
+    ),
+  ).toBe(originalSaved);
+  const stored = JSON.parse(originalSaved!);
+  expect(stored.attempts[2].requestBody).toBe(
+    '{"id":"e1","note":"cut\n{"token":[removed]}\n{"auth":{"token":[removed]}}',
+  );
+  expect(stored.redactions).toContain(
+    "attempt 3.requestBody[1].token: sensitive field",
+  );
+  expect(stored.redactions).toContain(
+    "attempt 3.requestBody[2].auth.token: sensitive field",
+  );
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export report" }).click(),
+  ]);
+  let output = "";
+  for await (const chunk of (await download.createReadStream())!)
+    output += chunk;
+  expect(output).not.toMatch(/synthetic-cut-next-100[67]/);
 });
 test("signature inputs remain transient and reformatting invalidates the digest", async ({
   page,
